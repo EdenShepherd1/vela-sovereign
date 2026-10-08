@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#060913">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vela">
+<meta name="description" content="A turn-based space 4X strategy game for your phone.">
+<style>html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
+<title>Vela Sovereign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed star chart, slim status strip on top, command dock below, slide-up sheets for every screen */
+:root{
+  --void:#060913; --panel:#0e1426; --panel2:#151d36; --line:#25304f; --ink:#dfe5f3; --dim:#8a94b0;
+  --brass:#e7b25a; --sci:#5fd0c9; --food:#8fd16a; --ind:#e8894a; --bc:#f2d36b; --danger:#ef5f5f; --good:#6fd18d;
+  --f-disp:'Chakra Petch','Trebuchet MS',sans-serif; --f-body:'Barlow',system-ui,sans-serif; --f-mono:'JetBrains Mono',ui-monospace,monospace;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--f-body);font-size:15px;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+#app{display:flex;flex-direction:column;height:100%}
+#top{display:flex;align-items:center;gap:10px;padding:8px 14px;background:linear-gradient(var(--panel),rgba(14,20,38,.92));border-bottom:1px solid var(--line);z-index:5}
+#top .sd{font-family:var(--f-disp);font-weight:600;letter-spacing:.06em;font-size:13px;color:var(--brass);white-space:nowrap}
+#top .sd small{display:block;color:var(--dim);font-size:10px;letter-spacing:.14em}
+#top .stats{margin-left:auto;display:flex;gap:12px;font-size:12px}
+.stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+.stat b{font-family:var(--f-mono);font-weight:600;font-size:13px}
+.stat span{font-size:9px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;font-family:var(--f-disp)}
+#mapwrap{flex:1;position:relative;overflow:hidden;min-height:0}
+#map{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#endTurn{position:absolute;right:14px;bottom:14px;z-index:4;font-family:var(--f-disp);font-weight:700;letter-spacing:.12em;font-size:14px;padding:14px 18px;border-radius:4px;background:var(--brass);color:#1b1306;box-shadow:0 0 0 1px #f6d79c inset,0 6px 24px rgba(231,178,90,.25)}
+#endTurn:active{transform:translateY(1px)}
+#moveBanner{position:absolute;left:12px;right:12px;top:10px;z-index:4;background:rgba(14,20,38,.95);border:1px solid var(--brass);border-radius:4px;padding:10px 12px;display:flex;gap:10px;align-items:center;font-size:13px}
+#moveBanner button{margin-left:auto}
+#dock{display:grid;grid-template-columns:repeat(6,1fr);background:var(--panel);border-top:1px solid var(--line);z-index:25;position:relative}
+#dock button{padding:9px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:var(--f-disp);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+#dock button.on{color:var(--brass)}
+#dock svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+.badge{display:inline-block;min-width:16px;padding:0 4px;border-radius:8px;background:var(--danger);color:#fff;font-size:10px;font-family:var(--f-mono);line-height:16px}
+
+/* bottom star panel */
+#starPanel{position:absolute;left:0;right:0;bottom:0;max-height:62%;overflow-y:auto;background:rgba(12,17,33,.97);border-top:1px solid var(--line);z-index:3;padding:12px 16px 80px;border-radius:12px 12px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.5)}
+.ph{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.ph h2{font-family:var(--f-disp);font-weight:700;font-size:20px;letter-spacing:.04em;margin:0}
+.ph .sub{color:var(--dim);font-size:12px}
+.ph .x{margin-left:auto;font-size:22px;color:var(--dim);padding:0 4px;line-height:1}
+.lbl{font-family:var(--f-disp);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:14px 0 6px}
+.prow{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(37,48,79,.6)}
+.prow:last-child{border-bottom:0}
+.prow .nm{font-weight:600}
+.prow .mt{font-size:12px;color:var(--dim)}
+.pdot{width:22px;height:22px;border-radius:50%;justify-self:center;box-shadow:inset -5px -4px 8px rgba(0,0,0,.55)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel2);font-size:13px;font-weight:600;white-space:nowrap}
+.btn.pri{background:var(--brass);color:#1b1306;border-color:var(--brass)}
+.btn.warn{border-color:var(--danger);color:var(--danger)}
+.btn.sm{padding:5px 9px;font-size:12px}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.frow{padding:10px 12px;border:1px solid var(--line);border-radius:6px;margin-bottom:8px;background:rgba(21,29,54,.6)}
+.frow .top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 7px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--dim)}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
+.note{font-size:13px;color:var(--dim);line-height:1.45}
+.warnTxt{color:var(--danger)}
+
+/* full sheets */
+#sheet{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dockH,58px) + env(safe-area-inset-bottom,0px));z-index:20;background:var(--void);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+#sheet .sh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+#sheet .sh h1{font-family:var(--f-disp);font-size:18px;letter-spacing:.08em;text-transform:uppercase;margin:0;font-weight:700}
+#sheet .sh .x{margin-left:auto;font-size:26px;line-height:1;color:var(--dim)}
+#sheet .sb{flex:1;overflow-y:auto;padding:14px 16px 28px}
+.card{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:12px;margin-bottom:10px}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.kv span:first-child{color:var(--dim)}
+.bar{height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--brass)}
+.jobs{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.jobrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(37,48,79,.6)}
+.jobrow:last-child{border-bottom:0}
+.jobrow .ic{width:30px;text-align:center;font-family:var(--f-disp);font-weight:700}
+.jobrow .who{flex:1}
+.jobrow .who small{display:block;color:var(--dim);font-size:11px}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:36px;height:36px;border-radius:4px;border:1px solid var(--line);background:var(--panel2);font-size:18px;font-weight:600}
+.step b{min-width:22px;text-align:center;font-family:var(--f-mono)}
+.out{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.out div{text-align:center;padding:8px 2px;border-radius:4px;background:rgba(255,255,255,.04)}
+.out b{display:block;font-family:var(--f-mono);font-size:16px}
+.out span{font-size:9px;letter-spacing:.14em;color:var(--dim);font-family:var(--f-disp);text-transform:uppercase}
+.opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px;border:1px solid var(--line);border-radius:5px;background:var(--panel2);margin-bottom:6px}
+.opt .t{flex:1;min-width:0}
+.opt .t b{display:block;font-weight:600}
+.opt .t small{color:var(--dim);font-size:12px;line-height:1.35;display:block}
+.opt .c{font-family:var(--f-mono);font-size:12px;color:var(--ind);white-space:nowrap}
+.opt.on{border-color:var(--brass);box-shadow:0 0 0 1px var(--brass) inset}
+.tier{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tier .opt{flex-direction:column;align-items:flex-start;margin:0}
+.fieldhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.fieldhead b{font-family:var(--f-disp);letter-spacing:.08em;text-transform:uppercase;font-size:14px}
+.pips{display:flex;gap:3px;margin-left:auto}
+.pips i{width:14px;height:5px;border-radius:2px;background:rgba(255,255,255,.1)}
+.seg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.seg button{flex:1;padding:9px 4px;font-size:13px;font-weight:600;color:var(--dim)}
+.seg button.on{background:var(--brass);color:#1b1306}
+.qitem{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px}
+.qitem .x{margin-left:auto;color:var(--dim);font-size:18px;padding:0 6px}
+
+/* modal */
+#modal{position:fixed;inset:0;z-index:40;background:rgba(3,5,12,.78);display:flex;align-items:center;justify-content:center;padding:16px}
+#modal .box{width:100%;max-width:440px;max-height:88vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+#modal h3{font-family:var(--f-disp);letter-spacing:.06em;font-size:18px;margin:0 0 4px;text-transform:uppercase}
+#modal p{line-height:1.5;margin:8px 0;font-size:14px}
+#bcv{width:100%;height:260px;display:block;background:#04060d;border:1px solid var(--line);border-radius:4px;margin:8px 0}
+.ev{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(37,48,79,.6);font-size:13px;line-height:1.4}
+.ev i{flex:none;width:8px;height:8px;border-radius:50%;margin-top:5px}
+
+/* start screen */
+#start{position:fixed;inset:0;z-index:50;overflow-y:auto;background:radial-gradient(120% 70% at 50% 0%,#1a2346 0%,var(--void) 60%);padding:calc(24px + env(safe-area-inset-top,0px)) 16px 40px}
+#start .wrap{max-width:560px;margin:0 auto}
+#start h1{font-family:var(--f-disp);font-weight:700;font-size:40px;letter-spacing:.08em;line-height:1;margin:18px 0 6px;text-wrap:balance;color:var(--brass)}
+#start .lead{color:var(--dim);line-height:1.5;max-width:46ch}
+.races{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.race{text-align:left;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.race b{font-family:var(--f-disp);letter-spacing:.06em;font-size:15px;display:block}
+.race small{font-size:12px;color:var(--dim);line-height:1.35;display:block;margin-top:3px}
+.race.on{border-color:var(--brass);box-shadow:0 0 0 1px var(--brass) inset}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(60px + env(safe-area-inset-top,0px));z-index:60;background:var(--panel2);border:1px solid var(--brass);padding:8px 14px;border-radius:4px;font-size:13px;max-width:90%}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+
+<div id="app">
+  <header id="top">
+    <div class="sd"><small>STARDATE</small><span id="sd" class="num">3500.0</span></div>
+    <div class="stats">
+      <div class="stat"><b id="sBC" style="color:var(--bc)">0</b><span>Credits</span></div>
+      <div class="stat"><b id="sRP" style="color:var(--sci)">0</b><span>Research</span></div>
+      <div class="stat"><b id="sFood" style="color:var(--food)">0</b><span>Food</span></div>
+      <div class="stat"><b id="sPop">0</b><span>Pop</span></div>
+    </div>
+  </header>
+  <div id="mapwrap">
+    <canvas id="map"></canvas>
+    <div id="moveBanner" hidden><span id="moveTxt"></span><button class="btn sm" data-act="cancelMove">Cancel</button></div>
+    <button id="endTurn" data-act="endTurn">END TURN</button>
+    <div id="starPanel" hidden></div>
+  </div>
+  <nav id="dock">
+    <button data-act="tab" data-t="galaxy" class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 3"/></svg>Galaxy</button>
+    <button data-act="tab" data-t="colonies"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M5 12h14M12 5c3 3 3 11 0 14"/></svg>Planets</button>
+    <button data-act="tab" data-t="research"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg><span>Research <span id="rBadge"></span></span></button>
+    <button data-act="tab" data-t="fleets"><svg viewBox="0 0 24 24"><path d="M3 18 12 4l9 14-9-4z"/></svg>Fleets</button>
+    <button data-act="tab" data-t="races"><svg viewBox="0 0 24 24"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 19c1-3 3-4 5-4s4 1 5 4M11 19c1-3 3-4 5-4s4 1 5 4"/></svg>Empires</button>
+    <button data-act="tab" data-t="menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Menu</button>
+  </nav>
+</div>
+<div id="sheet" hidden><div class="sh"><h1 id="shT"></h1><button class="x" data-act="closeSheet" aria-label="Close">×</button></div><div class="sb" id="shB"></div></div>
+<div id="modal" hidden><div class="box" id="mB"></div></div>
+<div id="start" hidden></div>
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+/* ================= DATA ================= */
+const rnd=(a,b)=>a+Math.random()*(b-a), ri=(a,b)=>Math.floor(rnd(a,b+1)), pick=a=>a[Math.floor(Math.random()*a.length)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const wIdx=w=>{let t=w.reduce((a,b)=>a+b,0),r=Math.random()*t;for(let i=0;i<w.length;i++){r-=w[i];if(r<0)return i;}return w.length-1;};
+const ROMAN=['I','II','III','IV','V','VI'];
+const fmt=n=>(Math.round(n*10)/10).toString();
+
+const PT={
+  'Gaia':{food:3,pop:6,col:'#58c98b'},'Terran':{food:2,pop:5,col:'#4f9ed8'},'Ocean':{food:2,pop:5,col:'#2f6fd0'},
+  'Swamp':{food:1,pop:4,col:'#6f8f45'},'Arid':{food:1,pop:4,col:'#c79a5a'},'Tundra':{food:1,pop:4,col:'#b9d6de'},
+  'Desert':{food:1,pop:3,col:'#d6b366'},'Barren':{food:0,pop:2,col:'#8a8079'},'Inferno':{food:0,pop:1,col:'#d9583b'},
+  'Toxic':{food:0,pop:1,col:'#9bc23a'},'Radiated':{food:0,pop:1,col:'#c45cc4'},
+  'Gas Giant':{food:0,pop:0,col:'#d9a36a',op:true},'Asteroids':{food:0,pop:0,col:'#77706a',op:true}
+};
+const TYPE_W={'Gaia':1.5,'Terran':6,'Ocean':5,'Swamp':6,'Arid':7,'Tundra':7,'Desert':8,'Barren':10,'Inferno':6,'Toxic':7,'Radiated':7,'Gas Giant':9,'Asteroids':8};
+const SIZES=['Tiny','Small','Medium','Large','Huge'];
+const MINERALS=['Ultra Poor','Poor','Abundant','Rich','Ultra Rich'], MIN_PROD=[1,2,3,5,8];
+const SCLASS=[{n:'Yellow',c:'#ffe08a',w:5,m:0},{n:'Orange',c:'#ffb36b',w:4,m:0},{n:'Red',c:'#ff7f6e',w:5,m:-1},{n:'White',c:'#eef2ff',w:3,m:1},{n:'Blue',c:'#8fb8ff',w:2,m:1},{n:'Brown',c:'#b98a6a',w:2,m:-1}];
+const STAR_NAMES=['Aldren','Kessa','Mirvos','Tarsel','Oduna','Phaeris','Quillon','Zeth','Brannoc','Cyrene','Delvar','Elsin','Fomalt','Gorrath','Hyrex','Ixtal','Joren','Kalyx','Lirien','Maebh','Nyssa','Orrin','Pallis','Qadir','Rhovan','Sereth','Tolmar','Ulmo','Varga','Wyrd','Xanthe','Yrsa','Zoran','Ankaa','Brisa','Corvid','Draxa','Embra','Fenn','Galt','Haldor','Ione','Juno','Kirov','Lantis','Morrow','Nadir','Osk','Pyre','Rook','Sable','Thule','Umbra','Vesk'];
+
+const RACES=[
+  {id:'varnai',name:'Varnai',empire:'Varnai Concordat',blurb:'Silver-tongued traders. +50% income; rivals start friendlier.',t:{bc:1.5,charm:15}},
+  {id:'kesh',name:"Kesh'tar",empire:"Kesh'tar Hive",blurb:'Tireless builders. +1 production per worker, research −25%.',t:{ind:1,rp:0.75}},
+  {id:'lumen',name:'Lumenari',empire:'Lumenari Lyceum',blurb:'Psionic scholars. +1 research per scientist, weak marines.',t:{sci:1,ground:0.7}},
+  {id:'drakk',name:'Drakkan',empire:'Drakkan Dominion',blurb:'Born for war. +2 ship accuracy, double marine strength.',t:{acc:2,ground:2}},
+  {id:'thal',name:'Thalassi',empire:'Thalassi Tide',blurb:'Tidal farmers. +1 food per farmer, +50% population growth.',t:{food:1,growth:1.5}},
+  {id:'mekon',name:'Mekon',empire:'Mekon Collective',blurb:'Machine minds. Need no food at all, grow 40% slower.',t:{nofood:true,growth:0.6}}
+];
+const RACE=Object.fromEntries(RACES.map(r=>[r.id,r]));
+const EMP_COL=['#e7b25a','#e2566a','#9b82f2','#46c4a3'];
+
+const HULLS={
+  frigate:{name:'Frigate',space:25,hp:6,cost:12,eva:3},
+  destroyer:{name:'Destroyer',space:60,hp:14,cost:28,eva:2},
+  cruiser:{name:'Cruiser',space:120,hp:30,cost:65,eva:1},
+  battleship:{name:'Battleship',space:250,hp:65,cost:140,eva:0},
+  titan:{name:'Titan',space:500,hp:130,cost:290,eva:-1},
+  doom:{name:'Doom Star',space:1200,hp:320,cost:680,eva:-2}
+};
+const HULL_ORDER=['frigate','destroyer','cruiser','battleship','titan','doom'];
+const WEAPONS={
+  laser:{name:'Laser',min:1,max:4,space:10,cost:3,f:'phy',tier:0,beam:true},
+  massdriver:{name:'Mass Driver',min:2,max:6,space:10,cost:4,f:'phy',tier:1,beam:true},
+  neutron:{name:'Neutron Blaster',min:3,max:12,space:15,cost:7,f:'phy',tier:2,beam:true},
+  graviton:{name:'Graviton Beam',min:6,max:16,space:19,cost:10,f:'phy',tier:3,beam:true},
+  plasma:{name:'Plasma Cannon',min:6,max:30,space:24,cost:15,f:'phy',tier:4,beam:true},
+  deathray:{name:'Death Ray',min:12,max:50,space:30,cost:24,f:'phy',tier:5,beam:true},
+  nuke:{name:'Nuclear Missile',min:8,max:8,space:18,cost:5,f:'chem',tier:1,missile:true,acc:1},
+  merculite:{name:'Merculite Missile',min:11,max:11,space:18,cost:7,f:'chem',tier:2,missile:true,acc:2},
+  pulson:{name:'Pulson Missile',min:15,max:15,space:20,cost:10,f:'chem',tier:3,missile:true,acc:3},
+  zeon:{name:'Zeon Missile',min:22,max:22,space:22,cost:14,f:'chem',tier:4,missile:true,acc:4}
+};
+const BLD={
+  starbase:{name:'Star Base',cost:100,m:1,d:'Orbital gun platform. 40 structure, 3 guns.',def:40,guns:3},
+  barracks:{name:'Marine Barracks',cost:60,m:1,d:'+4 marines defending the planet.'},
+  af:{name:'Automated Factory',cost:60,m:1,d:'+5 production, +1 per worker.'},
+  rf:{name:'Robotic Factory',cost:150,m:2,d:'+10 production, +1 per worker.'},
+  dcm:{name:'Deep Core Mine',cost:250,m:3,d:'+15 production, +2 per worker.'},
+  sf:{name:'Star Fortress',cost:250,m:3,d:'Heavy orbital fortress. 150 structure, 8 guns.',def:150,guns:8},
+  pse:{name:'Stock Exchange',cost:200,m:0,d:'+8 credits per turn.'},
+  mb:{name:'Missile Base',cost:120,m:2,d:'Ground silos. 30 structure, 4 missile launchers.',def:30,mguns:4},
+  ps:{name:'Planetary Shield',cost:200,m:2,d:'Blocks 5 damage from every hit on this planet.'},
+  pfs:{name:'Flux Shield',cost:350,m:3,d:'Blocks 10 damage from every hit on this planet.'},
+  bar:{name:'Barrier Shield',cost:600,m:4,d:'Blocks 20 damage from every hit on this planet.'},
+  rl:{name:'Research Lab',cost:60,m:1,d:'+5 research, +1 per scientist.'},
+  sc:{name:'Supercomputer',cost:150,m:2,d:'+10 research, +1 per scientist.'},
+  gc:{name:'Galactic Cybernet',cost:250,m:3,d:'+15 research, +2 per scientist.'},
+  al:{name:'Autolab',cost:200,m:3,d:'+30 research with no staff.'},
+  hf:{name:'Hydroponic Farm',cost:60,m:1,d:'+2 food, works on any world.'},
+  bio:{name:'Biospheres',cost:80,m:1,d:'+2 maximum population.'},
+  cc:{name:'Cloning Center',cost:100,m:2,d:'Population grows faster.'},
+  se:{name:'Soil Enrichment',cost:80,m:1,d:'+1 food per farmer.'},
+  arch:{name:'Precursor Archive',cost:0,m:0,d:'+20 research. Found only on Vela Prime.'}
+};
+const PROJ={
+  tf:{name:'Terraform',cost:250,d:'Improve the planet one climate step.'},
+  gaia:{name:'Gaia Transformation',cost:500,d:'Turn a Terran or Ocean world into Gaia.'}
+};
+const TF_NEXT={Toxic:'Barren',Radiated:'Barren',Inferno:'Barren',Barren:'Desert',Desert:'Arid',Arid:'Terran',Tundra:'Terran',Swamp:'Terran'};
+const T=(id,name,d,e)=>({id,name,d,e});
+const FIELDS=[
+ {id:'con',name:'Construction',col:'#e8894a',tiers:[
+  [T('af','Automated Factory','Building: +5 production, +1 per worker.',{bld:'af'}),T('rhull','Reinforced Hull','All hulls +50% structure.',{hullHp:.5})],
+  [T('rf','Robotic Factory','Building: +10 production, +1 per worker.',{bld:'rf'}),T('acad','Space Academy','Crews train harder. +1 ship accuracy.',{acc:1})],
+  [T('dcm','Deep Core Mining','Building: +15 production, +2 per worker.',{bld:'dcm'}),T('sf','Star Fortress','Building: heavy orbital defense.',{bld:'sf'})],
+  [T('acp','Advanced City Planning','+3 maximum population on every colony.',{maxpop:3}),T('pse','Planetary Stock Exchange','Building: +8 credits per turn.',{bld:'pse'})],
+  [T('titanic','Titanic Works','+25% production everywhere.',{prod:.25}),T('doomhull','Doom Star Construction','Unlocks the Doom Star hull.',{hull:'doom'})]]},
+ {id:'pow',name:'Power',col:'#f2d36b',tiers:[
+  [T('ion','Ion Drive','Ship speed 2.',{speed:2}),T('pods','Battle Pods','+20% space on every hull.',{space:.2})],
+  [T('fusion','Fusion Drive','Ship speed 3.',{speed:3}),T('fuel','Fuel Cells','+150 parsecs of fleet range.',{range:150})],
+  [T('hyper','Hyper Drive','Ship speed 4.',{speed:4}),T('absorb','Energy Absorber','+2 to every ship shield.',{shieldAdd:2})],
+  [T('interph','Interphased Drive','Ship speed 5.',{speed:5}),T('spaceport','Interstellar Trade Hub','+30% credit income.',{bc:.3})],
+  [T('transwarp','Transwarp Drive','Ship speed 6.',{speed:6}),T('gate','Dimensional Gate','Lets fleets cross into the Hollow Rift.',{gate:true})]]},
+ {id:'phy',name:'Physics',col:'#8fb8ff',tiers:[
+  [T('massdriver','Mass Driver','Beam weapon, 2–6 damage.',{weapon:'massdriver'}),T('dss','Deep Space Scanner','+100 scanner range.',{scan:100})],
+  [T('neutron','Neutron Blaster','Beam weapon, 3–12 damage.',{weapon:'neutron'}),T('inertial','Inertial Stabilizer','+2 ship evasion.',{eva:2})],
+  [T('graviton','Graviton Beam','Beam weapon, 6–16 damage.',{weapon:'graviton'}),T('hef','High-Energy Focus','+25% beam damage.',{beam:.25})],
+  [T('plasma','Plasma Cannon','Beam weapon, 6–30 damage.',{weapon:'plasma'}),T('cloak','Phasing Cloak','+3 ship evasion.',{eva:3})],
+  [T('deathray','Death Ray','Beam weapon, 12–50 damage.',{weapon:'deathray'}),T('achilles','Achilles Targeting','Ship weapons ignore enemy shields.',{ign:true})]]},
+ {id:'chem',name:'Chemistry',col:'#ef7aa0',tiers:[
+  [T('zort','Zortrium Armor','Ship structure ×2.',{armor:2}),T('nuke','Nuclear Missile','Missile, 8 damage, fires 3 rounds.',{weapon:'nuke'})],
+  [T('andr','Andrium Armor','Ship structure ×3.',{armor:3}),T('merculite','Merculite Missile','Missile, 11 damage.',{weapon:'merculite'})],
+  [T('trit','Tritanium Armor','Ship structure ×4.',{armor:4}),T('pulson','Pulson Missile','Missile, 15 damage.',{weapon:'pulson'})],
+  [T('adam','Adamantium Armor','Ship structure ×5.',{armor:5}),T('zeon','Zeon Missile','Missile, 22 damage.',{weapon:'zeon'})],
+  [T('neutro','Neutronium Armor','Ship structure ×6.',{armor:6}),T('molec','Molecular Compressor','+25% space on every hull.',{space:.25})]]},
+ {id:'ff',name:'Force Fields',col:'#5fd0c9',tiers:[
+  [T('sh1','Class I Shield','Ship shields block 1 damage per hit.',{shield:1}),T('mb','Missile Base','Building: planetary missile silos.',{bld:'mb'})],
+  [T('sh3','Class III Shield','Ship shields block 3 per hit.',{shield:3}),T('ps','Planetary Shield','Building: planet blocks 5 per hit.',{bld:'ps'})],
+  [T('sh5','Class V Shield','Ship shields block 5 per hit.',{shield:5}),T('pers','Personal Shields','Marines fight 50% harder.',{ground:1.5})],
+  [T('sh7','Class VII Shield','Ship shields block 7 per hit.',{shield:7}),T('pfs','Flux Shield','Building: planet blocks 10 per hit.',{bld:'pfs'})],
+  [T('sh10','Class X Shield','Ship shields block 10 per hit.',{shield:10}),T('bar','Barrier Shield','Building: planet blocks 20 per hit.',{bld:'bar'})]]},
+ {id:'bio',name:'Biology',col:'#8fd16a',tiers:[
+  [T('hf','Hydroponic Farm','Building: +2 food anywhere.',{bld:'hf'}),T('bio','Biospheres','Building: +2 maximum population.',{bld:'bio'})],
+  [T('cc','Cloning Center','Building: faster population growth.',{bld:'cc'}),T('se','Soil Enrichment','Building: +1 food per farmer.',{bld:'se'})],
+  [T('tf','Terraforming','Project: improve a planet one climate step.',{proj:'tf'}),T('antidote','Universal Antidote','+1 maximum population everywhere, +25% growth.',{maxpop:1,growth:.25})],
+  [T('gaia','Gaia Transformation','Project: make Terran or Ocean worlds Gaia.',{proj:'gaia'}),T('evo','Evolutionary Mutation','+1 food per farmer and +1 production per worker.',{food:1,ind:1})],
+  [T('immort','Immortality Gene','+50% growth, +2 maximum population.',{growth:.5,maxpop:2}),T('transgen','Trans-Genetics','+1 food per farmer, +1 research per scientist.',{food:1,sci:1})]]},
+ {id:'comp',name:'Computers',col:'#c7a6ff',tiers:[
+  [T('rl','Research Lab','Building: +5 research, +1 per scientist.',{bld:'rl'}),T('scan1','Battle Scanner','+1 ship accuracy.',{acc:1})],
+  [T('sc','Supercomputer','Building: +10 research, +1 per scientist.',{bld:'sc'}),T('optro','Optronic Computer','+1 ship accuracy.',{acc:1})],
+  [T('gc','Galactic Cybernet','Building: +15 research, +2 per scientist.',{bld:'gc'}),T('posi','Positronic Computer','+2 ship accuracy.',{acc:2})],
+  [T('al','Autolab','Building: +30 research.',{bld:'al'}),T('molet','Moleculartronic Computer','+2 ship accuracy.',{acc:2})],
+  [T('quantum','Quantum Archive','+25% research everywhere.',{rp:.25}),T('uplink','Psionic Uplink','+3 ship accuracy.',{acc:3})]]}
+];
+const TIER_COST=[60,220,600,1300,2600];
+const TECH={};FIELDS.forEach(f=>f.tiers.forEach((tr,ti)=>tr.forEach(t=>{TECH[t.id]={...t,field:f.id,tier:ti};})));
+const SPEED=[0,70,95,120,150,185,230];
+const SHIP_NAMES=['Lancer','Bastion','Corsair','Halberd','Vigil','Tempest','Paladin','Monarch','Aegis','Harbinger','Seraph','Warhound','Ironclad','Talon','Sovereign','Nomad'];
+
+/* ================= STATE HELPERS ================= */
+let S=null;
+const UI={sel:null,moveFid:null,split:null,cam:{x:0,y:0,z:1},tab:'galaxy',mq:[],sheet:null,colony:null,dsg:null};
+const E=id=>S.empires[id], P=id=>S.planets[id], ST=id=>S.stars[id];
+const me=()=>S.empires[0];
+const cols=e=>S.planets.filter(p=>p.owner===e.id);
+const popOf=e=>cols(e).reduce((a,p)=>a+(p.outpost?0:Math.floor(p.pop)),0);
+const has=(p,b)=>p.buildings.includes(b);
+const nid=()=>S.nextId++;
+function ev(text,lvl=1,who=0,col){ if(who!==0&&who!==-9) return; S.events.push({t:text,l:lvl,c:col||'#8a94b0'}); }
+
+function recompute(e){
+  const r=RACE[e.race].t;
+  const b={acc:r.acc||0,eva:0,beam:0,speed:1,range:0,scan:0,hullHp:0,space:0,maxpop:0,growth:r.growth||1,prod:0,rp:0,bc:0,
+    food:r.food||0,ind:r.ind||0,sci:r.sci||0,ground:r.ground||1,shield:0,shieldAdd:0,ign:false,gate:false,armor:1,
+    blds:new Set(['starbase','barracks']),proj:new Set(),hulls:new Set(['frigate','destroyer']),weapons:new Set(['laser']),lvl:{}};
+  FIELDS.forEach(f=>{b.lvl[f.id]=f.tiers.filter(t=>t.some(x=>e.techs.includes(x.id))).length;});
+  for(const id of e.techs){const x=TECH[id].e;
+    if(x.bld)b.blds.add(x.bld); if(x.proj)b.proj.add(x.proj); if(x.hull)b.hulls.add(x.hull); if(x.weapon)b.weapons.add(x.weapon);
+    if(x.acc)b.acc+=x.acc; if(x.eva)b.eva+=x.eva; if(x.beam)b.beam+=x.beam; if(x.speed)b.speed=Math.max(b.speed,x.speed);
+    if(x.range)b.range+=x.range; if(x.scan)b.scan+=x.scan; if(x.hullHp)b.hullHp+=x.hullHp; if(x.space)b.space+=x.space;
+    if(x.maxpop)b.maxpop+=x.maxpop; if(x.growth)b.growth+=x.growth; if(x.prod)b.prod+=x.prod; if(x.rp)b.rp+=x.rp; if(x.bc)b.bc+=x.bc;
+    if(x.food)b.food+=x.food; if(x.ind)b.ind+=x.ind; if(x.sci)b.sci+=x.sci; if(x.ground)b.ground*=x.ground;
+    if(x.shield)b.shield=Math.max(b.shield,x.shield); if(x.shieldAdd)b.shieldAdd+=x.shieldAdd; if(x.ign)b.ign=true; if(x.gate)b.gate=true; if(x.armor)b.armor=Math.max(b.armor,x.armor);
+  }
+  if(b.lvl.con>=1)b.hulls.add('cruiser'); if(b.lvl.con>=2)b.hulls.add('battleship'); if(b.lvl.con>=3)b.hulls.add('titan');
+  e.b=b;
+}
+const aiMult=e=>e.isPlayer?1:({easy:.8,normal:1,hard:1.3}[S.opts.diff]||1);
+
+function maxPop(e,p){const t=PT[p.type]; if(!t||t.op)return 0; let m=t.pop*(p.size+1); return m+e.b.maxpop+(has(p,'bio')?2:0);}
+function yieldOf(e,p){
+  const t=PT[p.type],b=e.b,r=RACE[e.race].t,cap=p.capital?1:0;
+  const fpf=t.food>0?t.food+b.food+(has(p,'se')?1:0):0;
+  const food=p.f*fpf+(has(p,'hf')?2:0)+cap*2;
+  const need=r.nofood?0:Math.floor(p.pop);
+  const ipw=MIN_PROD[p.min]+b.ind+(has(p,'af')?1:0)+(has(p,'rf')?1:0)+(has(p,'dcm')?2:0);
+  let ind=p.w*ipw+(has(p,'af')?5:0)+(has(p,'rf')?10:0)+(has(p,'dcm')?15:0)+cap*5;
+  ind*= (1+b.prod)*(e.debt?.5:1)*aiMult(e);
+  const sps=3+b.sci+(has(p,'rl')?1:0)+(has(p,'sc')?1:0)+(has(p,'gc')?2:0);
+  let rp=p.s*sps+(has(p,'rl')?5:0)+(has(p,'sc')?10:0)+(has(p,'gc')?15:0)+(has(p,'al')?30:0)+(has(p,'arch')?20:0)+cap*3;
+  rp*=(r.rp||1)*(1+b.rp)*aiMult(e);
+  let bc=(Math.floor(p.pop)*.5+(has(p,'pse')?8:0))*(r.bc||1)*(1+b.bc);
+  return {food,need,ind:Math.round(ind),rp:Math.round(rp),bc,fpf,ipw,sps};
+}
+function growthOf(e,p){const m=maxPop(e,p); if(p.outpost||p.pop>=m)return 0; let g=(.15+.1*Math.sqrt(p.pop))*(1-p.pop/m)*e.b.growth; if(has(p,'cc'))g+=.15; return g;}
+function empTotals(e){const t={food:0,need:0,ind:0,rp:0,bc:0,maint:0,pop:0};
+  for(const p of cols(e)){ if(p.outpost)continue; const y=yieldOf(e,p); t.food+=y.food;t.need+=y.need;t.ind+=y.ind;t.rp+=y.rp;t.bc+=y.bc;t.pop+=Math.floor(p.pop);
+    p.buildings.forEach(b=>t.maint+=BLD[b].m); }
+  for(const f of S.fleets) if(f.owner===e.id) for(const s of f.ships) if(s.d.kind==='war'||s.d.kind==='transport') t.maint+=s.d.cost*.02;
+  for(const o of S.empires) if(o.alive&&o.id!==e.id&&e.rel[o.id]){ const pr=Math.min(popOf(e),popOf(o)); if(e.rel[o.id].trade)t.bc+=pr*.15; if(e.rel[o.id].pact)t.rp+=pr*.25; }
+  t.maint=Math.round(t.maint*10)/10; return t;}
+
+function fixJobs(e,p){const n=p.outpost?0:Math.floor(p.pop); let tot=p.f+p.w+p.s;
+  while(tot>n){ if(p.s>0)p.s--; else if(p.w>0)p.w--; else p.f--; tot--; }
+  while(tot<n){ const t=empTotals(e); if(t.food<t.need+1&&yieldOf(e,p).fpf>0&&!RACE[e.race].t.nofood)p.f++; else p.w++; tot++; } }
+function allocateJobs(e,ratio){
+  const cs=cols(e).filter(p=>!p.outpost); cs.forEach(p=>{p.f=0;p.w=0;p.s=0;});
+  if(!RACE[e.race].t.nofood){ let need=0,food=0; cs.forEach(p=>{const y=yieldOf(e,p);need+=Math.floor(p.pop);food+=y.food;});
+    const farm=cs.filter(p=>yieldOf(e,p).fpf>0).sort((a,b)=>yieldOf(e,b).fpf-yieldOf(e,a).fpf);
+    for(const p of farm){const fpf=yieldOf(e,p).fpf; while(food<need&&p.f<Math.floor(p.pop)){p.f++;food+=fpf;} if(food>=need)break;} }
+  cs.forEach(p=>{const rem=Math.floor(p.pop)-p.f; p.s=Math.round(rem*ratio); p.w=rem-p.s;});
+}
+
+/* ===== ships ===== */
+function bestBeam(e){let best='laser';for(const w of e.b.weapons)if(WEAPONS[w].beam&&WEAPONS[w].tier>WEAPONS[best].tier)best=w;return best;}
+function bestMissile(e){let best=null;for(const w of e.b.weapons)if(WEAPONS[w].missile&&(!best||WEAPONS[w].tier>WEAPONS[best].tier))best=w;return best;}
+function warStats(e,d){
+  const H=HULLS[d.hull],W=WEAPONS[d.weapon],b=e.b;
+  const space=H.space*(1+b.space), sh=d.shield?b.shield:0, shSpace=sh?H.space*.12:0, comp=b.acc>0?H.space*.05:0;
+  const mini=Math.max(.5,1-.08*Math.max(0,(b.lvl[W.f]||0)-W.tier)), ws=W.space*mini;
+  const count=Math.max(1,Math.floor((space-shSpace-comp)/ws));
+  const hp=Math.round(H.hp*b.armor*(1+b.hullHp));
+  const cost=Math.round(H.cost+count*W.cost+sh*H.space*.03+(b.armor-1)*H.cost*.2);
+  return {kind:'war',name:d.name,hull:d.hull,weapon:d.weapon,count,shield:sh?sh+b.shieldAdd:0,acc:b.acc,eva:H.eva+b.eva,hp,cost,speed:b.speed,beam:b.beam,ign:b.ign};
+}
+const SPECIAL={
+  scout:e=>({kind:'scout',name:'Scout',hull:'frigate',count:0,shield:0,acc:0,eva:4,hp:4,cost:12,speed:e.b.speed+1}),
+  colony:e=>({kind:'colony',name:'Colony Ship',hull:'cruiser',count:0,shield:0,acc:0,eva:0,hp:10,cost:90,speed:e.b.speed}),
+  outpost:e=>({kind:'outpost',name:'Outpost Ship',hull:'destroyer',count:0,shield:0,acc:0,eva:1,hp:6,cost:35,speed:e.b.speed}),
+  transport:e=>({kind:'transport',name:'Troop Transport',hull:'destroyer',count:0,shield:0,acc:0,eva:1,hp:8,cost:40,speed:e.b.speed,troops:4})
+};
+const SPECIAL_DESC={scout:'Fast, unarmed. Explores and spots fleets.',colony:'Founds a new colony on a habitable planet.',outpost:'Claims any planet, even gas giants. Extends range.',transport:'Carries 4 marines to invade enemy planets.'};
+function shipSpec(e,it){ if(it.kind==='war'){const d=e.designs.find(x=>x.id===it.designId)||e.designs[0]; return warStats(e,d);} return SPECIAL[it.kind](e); }
+function makeShip(e,spec){return {id:nid(),d:spec,hp:spec.hp};}
+function itemCost(e,it){ if(it.k==='bld')return BLD[it.id].cost; if(it.k==='proj')return PROJ[it.id].cost; if(it.k==='ship')return shipSpec(e,it).cost; return 0; }
+function itemName(e,it){ if(it.k==='bld')return BLD[it.id].name; if(it.k==='proj')return PROJ[it.id].name; if(it.k==='ship')return shipSpec(e,it).name; return 'Trade Goods'; }
+const fleetSpeed=f=>SPEED[Math.min(6,Math.min(...f.ships.map(s=>s.d.speed)))]||70;
+const armed=f=>f.ships.some(s=>s.d.count>0);
+const fleetsAt=sid=>S.fleets.filter(f=>f.star===sid);
+function rangeOf(e){return 240+40*(e.b.lvl.pow||0)+e.b.range;}
+function inRange(e,st){ if(st.rift)return e.b.gate; const R=rangeOf(e); return S.planets.some(p=>p.owner===e.id&&Math.hypot(ST(p.star).x-st.x,ST(p.star).y-st.y)<=R); }
+function hostile(a,b){ if(a===b)return false; if(a<0&&b<0)return false; if(a<0||b<0)return true; return !!E(a).rel[b]?.war; }
+function hostileArmedAt(oid,sid){ return fleetsAt(sid).some(f=>hostile(oid,f.owner)&&armed(f)); }
+function shipAtk(d){ if(!d.count)return 0; const W=WEAPONS[d.weapon]; return d.count*(W.min+W.max)/2*(W.missile?.6:1)*(1+(d.beam||0)); }
+function strength(ships){let a=0,h=0;for(const s of ships){a+=shipAtk(s.d);h+=s.hp+s.d.shield*3;}return Math.sqrt(a*h);}
+function defMax(p){ if(p.owner==null||p.owner<0)return 0; const e=E(p.owner); let d=0; p.buildings.forEach(b=>{if(BLD[b].def)d+=BLD[b].def;}); return Math.round(d*Math.sqrt(e.b.armor)); }
+function pShield(p){return has(p,'bar')?20:has(p,'pfs')?10:has(p,'ps')?5:0;}
+function planetUnit(p){ const e=E(p.owner); let g=0,mg=0; p.buildings.forEach(b=>{g+=BLD[b].guns||0;mg+=BLD[b].mguns||0;});
+  const w=[]; if(g)w.push({id:bestBeam(e),n:g}); if(mg)w.push({id:bestMissile(e)||bestBeam(e),n:mg});
+  return {owner:p.owner,name:p.name,hp:p.def,max:defMax(p),shield:pShield(p),eva:-4,acc:e.b.acc+1,w,beam:e.b.beam,ign:e.b.ign,planet:p,kind:'planet'}; }
+function planetStrength(p){ if(p.def<=0)return 0; const u=planetUnit(p); let a=0; u.w.forEach(m=>{const W=WEAPONS[m.id];a+=m.n*(W.min+W.max)/2;}); return Math.sqrt(a*(u.hp+u.shield*6)); }
+function defenders(p){ if(p.outpost)return 0; const e=E(p.owner); return (Math.floor(p.pop)*.5+(has(p,'barracks')?4:0)+(p.capital?4:0))*e.b.ground; }
+
+/* ================= GALAXY GENERATION ================= */
+function newGame(opts){
+  const N={small:20,medium:28,large:36}[opts.size]||28;
+  const W=Math.round(Math.sqrt(N*42000/1.45)),H=Math.round(W*1.45);
+  S={turn:0,W,H,stars:[],planets:[],empires:[],fleets:[],nextId:1,events:[],log:[],opts,council:{next:60},over:null,rift:null,replays:[],offers:[]};
+  const names=shuffle(STAR_NAMES.slice()); let tries=0;
+  while(S.stars.length<N&&tries<30000){tries++; const x=rnd(70,W-70),y=rnd(70,H-70);
+    if(S.stars.every(s=>Math.hypot(s.x-x,s.y-y)>108)) S.stars.push({id:S.stars.length,x,y,name:names.pop(),cls:wIdx(SCLASS.map(c=>c.w)),planets:[]}); }
+  const cx=W/2,cy=H/2; const vela=S.stars.reduce((a,s)=>Math.hypot(s.x-cx,s.y-cy)<Math.hypot(a.x-cx,a.y-cy)?s:a);
+  vela.vela=true; vela.name='Vela'; vela.cls=3;
+  // homes
+  let bestH=null,bestD=-1; const pool=S.stars.filter(s=>!s.vela&&Math.hypot(s.x-vela.x,s.y-vela.y)>230);
+  for(let k=0;k<400;k++){const c=shuffle(pool.slice()).slice(0,4); let md=1e9; for(let i=0;i<4;i++)for(let j=i+1;j<4;j++)md=Math.min(md,Math.hypot(c[i].x-c[j].x,c[i].y-c[j].y)); if(md>bestD){bestD=md;bestH=c;}}
+  const addP=(st,type,size,min,o,name)=>{const p={id:S.planets.length,star:st.id,orbit:o,name:name||st.name+' '+ROMAN[o],type,size,min,owner:null,pop:0,f:0,w:0,s:0,buildings:[],queue:[],prog:0,def:0,capital:false,outpost:false,blk:false};S.planets.push(p);st.planets.push(p.id);return p;};
+  const tKeys=Object.keys(TYPE_W),tW=tKeys.map(k=>TYPE_W[k]);
+  const randPlanet=(st,o)=>{const type=tKeys[wIdx(tW)]; const size=PT[type].op?2:wIdx([2,4,5,3,1]); const min=clamp(wIdx([1,3,6,3,1])+SCLASS[st.cls].m,0,4); return addP(st,type,size,min,o);};
+  for(const st of S.stars){
+    if(st.vela){addP(st,'Gaia',4,4,0,'Vela Prime');addP(st,'Asteroids',2,3,1);continue;}
+    const hi=bestH.indexOf(st);
+    if(hi>=0){ st.cls=0; randPlanet(st,0); addP(st,'Terran',2,2,1); if(Math.random()<.7)randPlanet(st,2); continue; }
+    const n=Math.random()<.08?0:ri(1,4); for(let o=0;o<n;o++)randPlanet(st,o);
+  }
+  // guarantee decent neighbours
+  for(const h of bestH){ const near=S.stars.filter(s=>s!==h&&!s.vela&&!bestH.includes(s)).sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y)).slice(0,2);
+    for(const s of near){ if(!s.planets.some(id=>PT[P(id).type].pop>=4)){ if(s.planets.length){const p=P(s.planets[0]);p.type=pick(['Terran','Ocean','Arid','Tundra','Swamp']);p.size=ri(1,3);} else {addP(s,pick(['Terran','Arid','Ocean']),ri(1,3),2,0);} } } }
+  // empires
+  const others=shuffle(RACES.map(r=>r.id).filter(id=>id!==opts.race)).slice(0,3);
+  [opts.race,...others].forEach((rid,i)=>{
+    const e={id:i,race:rid,name:RACE[rid].empire,color:EMP_COL[i],isPlayer:i===0,alive:true,bc:40,rp:0,researching:null,techs:[],
+      designs:[{id:'d1',name:'Lancer',hull:'frigate',weapon:'laser',shield:true},{id:'d2',name:'Bastion',hull:'destroyer',weapon:'laser',shield:true}],
+      capital:null,rel:{},met:{},explored:{},focus:i===0?.35:rnd(.25,.45),debt:false};
+    recompute(e); S.empires.push(e);
+    const home=bestH[i]; const hw=P(home.planets.find(id=>P(id).type==='Terran'&&P(id).orbit===1));
+    hw.name=home.name+' Prime'; hw.owner=i; hw.pop=8; hw.capital=true; hw.buildings=['starbase','barracks']; e.capital=hw.id;
+  });
+  S.empires.forEach(e=>{ S.empires.forEach(o=>{ if(o.id!==e.id) e.rel[o.id]={war:false,att:rnd(-10,10)+(RACE[o.race].t.charm||0)+(S.opts.diff==='hard'&&o.isPlayer?-15:0)+(S.opts.diff==='easy'&&o.isPlayer?10:0),trade:false,pact:false,warTurn:0}; });
+    const hw=P(e.capital); hw.def=defMax(hw); allocateJobs(e,e.focus);
+    const f={id:nid(),owner:e.id,star:hw.star,x:ST(hw.star).x,y:ST(hw.star).y,dest:null,ships:[]};
+    f.ships.push(makeShip(e,SPECIAL.scout(e)),makeShip(e,SPECIAL.colony(e)),makeShip(e,warStats(e,e.designs[0])));
+    S.fleets.push(f);
+    const sc={id:nid(),owner:e.id,star:hw.star,x:f.x,y:f.y,dest:null,ships:[makeShip(e,SPECIAL.scout(e))]}; S.fleets.push(sc);
+  });
+  // monsters
+  const MON=[
+    {name:'Void Leviathan',mk:()=>[mon('Void Leviathan',150,2,3,-1,'neutron',3)]},
+    {name:'Crystal Swarm',mk:()=>[1,2,3].map(()=>mon('Crystal Shard',34,1,2,2,'massdriver',2))},
+    {name:'Iron Sentinel',mk:()=>[mon('Iron Sentinel',95,4,4,0,'laser',10)]}];
+  const cand=shuffle(S.stars.filter(s=>!s.vela&&!bestH.includes(s)&&s.planets.length&&bestH.every(h=>Math.hypot(h.x-s.x,h.y-s.y)>230)));
+  cand.slice(0,Math.round(N*.16)).forEach(s=>{const m=pick(MON); S.fleets.push({id:nid(),owner:-1,star:s.id,x:s.x,y:s.y,dest:null,ships:m.mk(),monster:m.name});});
+  S.fleets.push({id:nid(),owner:-1,star:vela.id,x:vela.x,y:vela.y,dest:null,ships:[mon('The Warden',900,6,5,-2,'neutron',8,[{id:'plasma',n:2}])],monster:'The Warden',warden:true});
+  // rift (hidden until it opens)
+  let rp=null,rd=-1; for(let k=0;k<500;k++){const x=rnd(50,W-50),y=rnd(50,H-50); const d=Math.min(...S.stars.map(s=>Math.hypot(s.x-x,s.y-y)),Math.hypot(x-cx,y-cy)*.6+40); if(d>rd&&(x<W*.2||x>W*.8||y<H*.15||y>H*.85)){rd=d;rp={x,y};}}
+  const rift={id:S.stars.length,x:rp.x,y:rp.y,name:'Hollow Rift',cls:4,planets:[],rift:true,hidden:true}; S.stars.push(rift); S.rift=rift.id;
+  S.fleets.push({id:nid(),owner:-2,star:rift.id,x:rift.x,y:rift.y,dest:null,guard:true,monster:'Hollow Citadel',ships:[mon('Hollow Citadel',2600,12,7,-2,'deathray',9),...[1,2,3,4].map(()=>mon('Hollow Reaver',140,8,5,1,'plasma',3))]});
+  S.neb=[...Array(5)].map(()=>({x:rnd(0,W),y:rnd(0,H),r:rnd(220,420),h:pick([215,260,290,190,330])}));
+  updateExplore(); contacts();
+  const h=ST(P(me().capital).star); UI.cam={x:h.x,y:h.y,z:.8};
+}
+function mon(name,hp,sh,acc,eva,w,n,extra){const d={kind:'war',name,hull:'monster',weapon:w,count:n,shield:sh,acc,eva,hp,cost:0,speed:1,beam:0,ign:false,extra:extra||null};return {id:Math.random(),d,hp};}
+
+/* ================= TURN ENGINE ================= */
+function updateExplore(){
+  const e=me(); const sc=120+e.b.scan;
+  S.fleets.forEach(f=>{if(f.owner===0&&f.star!=null)e.explored[f.star]=true;});
+  S.planets.forEach(p=>{ if(p.owner!==0)return; const a=ST(p.star); S.stars.forEach(s=>{ if(!s.hidden&&Math.hypot(s.x-a.x,s.y-a.y)<=sc)e.explored[s.id]=true; }); });
+}
+function assets(e){const a=[];S.planets.forEach(p=>{if(p.owner===e.id){const s=ST(p.star);a.push({x:s.x,y:s.y,r:120+e.b.scan});}});S.fleets.forEach(f=>{if(f.owner===e.id)a.push({x:f.x,y:f.y,r:(f.ships.some(s=>s.d.kind==='scout')?170:80)+e.b.scan});});return a;}
+function contacts(){
+  const al=S.empires.filter(e=>e.alive); const A=al.map(assets);
+  for(let i=0;i<al.length;i++)for(let j=i+1;j<al.length;j++){ const a=al[i],b=al[j]; if(a.met[b.id])continue;
+    if(A[i].some(x=>A[j].some(y=>Math.hypot(x.x-y.x,x.y-y.y)<=Math.max(x.r,y.r)))){a.met[b.id]=true;b.met[a.id]=true; if(a.id===0)ev(`First contact: the ${b.name} (${RACE[b.race].name}).`,2,0,b.color);} }
+}
+function visibleToPlayer(f){ if(f.owner===0)return true; const sc=assets(me()); return sc.some(a=>Math.hypot(a.x-f.x,a.y-f.y)<=a.r); }
+
+function grantTech(e,id,silent){ if(e.techs.includes(id))return; e.techs.push(id); recompute(e); if(e.id===0&&!silent)ev(`Research complete: ${TECH[id].name}.`,2,0,'#5fd0c9'); }
+function availableTechs(e){ const out=[]; FIELDS.forEach(f=>{const l=e.b.lvl[f.id]; if(l<f.tiers.length) f.tiers[l].forEach(t=>out.push(t.id));}); return out; }
+function techCost(e,id){ return Math.round(TIER_COST[TECH[id].tier]); }
+
+function economy(e){
+  if(!e.alive)return;
+  const tot=empTotals(e);
+  // production
+  for(const p of cols(e)){ if(p.outpost)continue; const y=yieldOf(e,p);
+    if(!p.queue.length){ e.bc+=y.ind*.5; p.prog=0; continue; }
+    p.prog+=y.ind; const it=p.queue[0], c=itemCost(e,it);
+    if(p.prog>=c){ p.prog=Math.min(p.prog-c, p.queue[1]?itemCost(e,p.queue[1]):0); p.queue.shift(); complete(e,p,it); }
+  }
+  e.bc+=tot.bc-tot.maint; e.debt=e.bc<0; if(e.debt&&e.id===0)ev('Treasury is empty. Production is halved until credits recover.',3,0,'#ef5f5f');
+  // research
+  e.rp+=tot.rp;
+  if(e.researching&&e.rp>=techCost(e,e.researching)){ e.rp-=techCost(e,e.researching); grantTech(e,e.researching); e.researching=null; }
+  // food
+  const surplus=tot.food-tot.need; let starving=false;
+  if(surplus<0){ starving=true; const loss=-surplus*.25; const cs=cols(e).filter(p=>!p.outpost&&p.pop>1).sort((a,b)=>b.pop-a.pop); if(cs[0]){cs[0].pop=Math.max(1,cs[0].pop-loss); fixJobs(e,cs[0]);} if(e.id===0)ev(`Famine: food short by ${fmt(-surplus)}. Colonists are starving. Move workers to farms.`,3,0,'#ef5f5f'); }
+  else e.bc+=surplus*.25;
+  // growth & defence regen
+  for(const p of cols(e)){ if(!p.outpost&&!starving){ const before=Math.floor(p.pop); p.pop=Math.min(maxPop(e,p),p.pop+growthOf(e,p)); if(Math.floor(p.pop)>before){fixJobs(e,p); if(e.id===0&&Math.floor(p.pop)===maxPop(e,p))ev(`${p.name} has reached full population.`,1);} }
+    const dm=defMax(p); if(!p.blk)p.def=Math.min(dm,p.def+Math.max(10,dm*.5)); }
+  // repair ships
+  S.fleets.forEach(f=>{ if(f.owner!==e.id)return; const home=f.star!=null&&S.planets.some(p=>p.star===f.star&&p.owner===e.id); f.ships.forEach(s=>{s.hp=Math.min(s.d.hp,s.hp+(home?s.d.hp:s.d.hp*.1));}); });
+}
+function complete(e,p,it){
+  if(it.k==='bld'){ p.buildings.push(it.id); if(BLD[it.id].def||BLD[it.id].guns)p.def=defMax(p); if(e.id===0)ev(`${p.name} built a ${BLD[it.id].name}.`,1,0,'#e8894a'); }
+  else if(it.k==='proj'){ if(it.id==='tf'&&TF_NEXT[p.type]){const old=p.type;p.type=TF_NEXT[p.type]; if(e.id===0)ev(`${p.name} terraformed: ${old} → ${p.type}.`,2,0,'#8fd16a');} if(it.id==='gaia'&&(p.type==='Terran'||p.type==='Ocean')){p.type='Gaia'; if(e.id===0)ev(`${p.name} is now a Gaia world.`,2,0,'#8fd16a');} }
+  else if(it.k==='ship'){ const spec=shipSpec(e,it); const sh=makeShip(e,spec); let f=S.fleets.find(f=>f.owner===e.id&&f.star===p.star&&f.dest==null&&!f.mission);
+    if(!f){const s=ST(p.star); f={id:nid(),owner:e.id,star:s.id,x:s.x,y:s.y,dest:null,ships:[]}; S.fleets.push(f);} f.ships.push(sh);
+    if(e.id===0)ev(`${p.name} launched a ${spec.name}.`,1,0,'#e7b25a'); }
+}
+function moveFleets(){
+  for(const f of S.fleets){ if(f.dest==null)continue; const t=ST(f.dest), sp=fleetSpeed(f), d=Math.hypot(t.x-f.x,t.y-f.y);
+    if(d<=sp){ f.x=t.x;f.y=t.y;f.star=t.id;f.dest=null; if(f.owner===0){me().explored[t.id]=true; ev(`Fleet arrived at ${t.name}.`,1);} }
+    else { f.x+=(t.x-f.x)/d*sp; f.y+=(t.y-f.y)/d*sp; f.star=null; } }
+}
+function order(f,sid){ f.dest=sid; }
+function eta(f,sid){ const t=ST(sid); return Math.max(1,Math.ceil(Math.hypot(t.x-f.x,t.y-f.y)/fleetSpeed(f))); }
+
+/* ===== combat ===== */
+function shipUnit(s,owner,f){return {owner,name:s.d.name,hp:s.hp,max:s.d.hp,shield:s.d.shield,eva:s.d.eva,acc:s.d.acc,w:s.d.count?[{id:s.d.weapon,n:s.d.count},...(s.d.extra||[])]:[],beam:s.d.beam||0,ign:s.d.ign,ref:s,fleet:f,kind:s.d.kind,hull:s.d.hull};}
+function sideUnits(sid,o){const u=[]; fleetsAt(sid).forEach(f=>{if(f.owner===o)f.ships.forEach(s=>u.push(shipUnit(s,o,f)));}); if(o>=0)S.planets.forEach(p=>{if(p.star===sid&&p.owner===o&&p.def>0)u.push(planetUnit(p));}); return u;}
+const canFire=(u,r)=>u.hp>0&&u.w.some(m=>!WEAPONS[m.id].missile||r<3);
+function battle(A,B){
+  const U=[...A.map(u=>({...u,side:0})),...B.map(u=>({...u,side:1}))]; U.forEach((u,i)=>u.ix=i);
+  const start=U.map(u=>u.hp), rounds=[];
+  for(let r=0;r<8;r++){
+    const agg={};
+    for(const i of shuffle(U.map((u,i)=>i))){ const u=U[i]; if(u.hp<=0)continue;
+      for(const m of u.w){ const W=WEAPONS[m.id]; if(W.missile&&r>2)continue;
+        for(let k=0;k<m.n;k++){ const foes=U.filter(x=>x.side!==u.side&&x.hp>0); if(!foes.length)break;
+          const armedF=foes.filter(x=>x.w.length); const tg=(armedF.length&&Math.random()<.7)?pick(armedF):pick(foes);
+          const p=clamp(.5+.07*(u.acc+(W.acc||0)-tg.eva),.08,.97); const key=i+'>'+tg.ix; const a=agg[key]||(agg[key]={a:i,t:tg.ix,h:0,d:0,n:0}); a.n++;
+          if(Math.random()<p){ let dmg=ri(W.min,W.max)*(W.beam?1+(u.beam||0):1); if(!u.ign)dmg-=tg.shield; dmg=Math.max(0,Math.round(dmg)); tg.hp-=dmg; a.h++; a.d+=dmg; } } } }
+    rounds.push({shots:Object.values(agg),hp:U.map(u=>Math.max(0,u.hp))});
+    const al=s=>U.some(u=>u.side===s&&u.hp>0), fi=s=>U.some(u=>u.side===s&&canFire(u,r+1));
+    if(!al(0)||!al(1))break; if(!fi(0)&&!fi(1))break;
+  }
+  const armedAlive=s=>U.some(u=>u.side===s&&u.hp>0&&u.w.length&&u.kind!=='planet')||U.some(u=>u.side===s&&u.hp>0&&u.kind==='planet');
+  const a0=armedAlive(0),a1=armedAlive(1);
+  // unescorted non-combat ships are lost
+  if(a0&&!a1)U.forEach(u=>{if(u.side===1&&u.kind!=='planet')u.hp=0;});
+  if(a1&&!a0)U.forEach(u=>{if(u.side===0&&u.kind!=='planet')u.hp=0;});
+  U.forEach(u=>{ if(u.kind==='planet')u.planet.def=Math.max(0,u.hp); else u.ref.hp=u.hp; });
+  return {U,start,rounds,win:a0&&!a1?0:a1&&!a0?1:-1};
+}
+const ownerName=o=>o===-1?'Monsters':o===-2?'The Hollow':E(o).name;
+const ownerCol=o=>o===-1?'#c9b48a':o===-2?'#b06cff':E(o).color;
+function combats(){
+  S.planets.forEach(p=>p.blk=false);
+  for(const st of S.stars){ if(st.hidden)continue;
+    const owners=new Set(); fleetsAt(st.id).forEach(f=>owners.add(f.owner)); S.planets.forEach(p=>{if(p.star===st.id&&p.owner!=null)owners.add(p.owner);});
+    const os=[...owners];
+    for(let i=0;i<os.length;i++)for(let j=i+1;j<os.length;j++){ const a=os[i],b=os[j]; if(!hostile(a,b))continue;
+      const A=sideUnits(st.id,a),B=sideUnits(st.id,b); if(!A.length||!B.length)continue;
+      if(!A.some(u=>u.w.length)&&!B.some(u=>u.w.length))continue;
+      const fleetsInvolved=fleetsAt(st.id).some(f=>f.owner===a||f.owner===b); if(!fleetsInvolved)continue;
+      const res=battle(A,B);
+      fleetsAt(st.id).forEach(f=>{f.ships=f.ships.filter(s=>s.hp>0);});
+      if(a===0||b===0){ const pl=a===0?0:1; const won=res.win===pl, lost=res.win===1-pl;
+        S.replays.push({star:st.name,names:[ownerName(a),ownerName(b)],cols:[ownerCol(a),ownerCol(b)],units:res.U.map(u=>({s:u.side,n:u.name,m:u.max,k:u.kind,h:u.hull})),start:res.start,rounds:res.rounds,
+          result:won?'Victory':lost?'Defeat':'Stalemate',pl});
+        ev(`Battle at ${st.name} against ${ownerName(a===0?b:a)}: ${won?'victory':lost?'defeat':'no decision'}.`,3,0,won?'#6fd18d':'#ef5f5f'); }
+      // monster rewards
+      [a,b].forEach(o=>{ if(o<0){ fleetsAt(st.id).forEach(f=>{ if(f.owner===o&&!f.ships.length&&f.monster){ const victor=o===a?b:a; if(victor>=0){E(victor).bc+=f.warden?250:60; if(victor===0)ev(`${f.monster} destroyed at ${st.name}. Salvage worth ${f.warden?250:60} credits recovered.`,3,0,'#6fd18d');}
+          if(f.guard&&victor===0){S.over={win:true,how:'rift'};} } }); } });
+    }
+    S.fleets=S.fleets.filter(f=>f.ships.length);
+    S.planets.forEach(p=>{ if(p.star===st.id&&p.owner!=null&&hostileArmedAt(p.owner,st.id))p.blk=true; });
+  }
+}
+function invade(f,p){
+  const att=E(f.owner), trs=f.ships.filter(s=>s.d.kind==='transport'); if(!trs.length)return null;
+  let A=trs.length*4*att.b.ground, D=defenders(p); const A0=A,D0=D;
+  while(A>0&&D>0){ if(Math.random()<A/(A+D))D-=1; else A-=1; }
+  f.ships=f.ships.filter(s=>s.d.kind!=='transport'); S.fleets=S.fleets.filter(x=>x.ships.length);
+  const old=p.owner, ok=D<=0;
+  if(ok)capture(p,f.owner);
+  if(f.owner===0||old===0)ev(`${ownerName(f.owner)} invaded ${p.name}: ${Math.round(A0)} marines vs ${Math.round(D0)} defenders. ${ok?'Planet captured.':'Invasion repelled.'}`,3,0,(f.owner===0)===ok?'#6fd18d':'#ef5f5f');
+  return ok;
+}
+function capture(p,to){
+  S.stat=S.stat||{}; S.stat.cap=(S.stat.cap||0)+1;
+  const old=E(p.owner); p.owner=to; p.queue=[]; p.prog=0; p.def=0;
+  if(p.outpost){} else { p.pop=Math.max(1,p.pop*.8); }
+  if(p.capital){ p.capital=false; const nc=cols(old).filter(x=>!x.outpost).sort((a,b)=>b.pop-a.pop)[0]; if(nc){nc.capital=true;old.capital=nc.id;} }
+  const ne=E(to); if(!p.outpost)allocateJobs(ne,ne.focus);
+  if(!cols(old).length)eliminate(old);
+}
+function eliminate(e){ e.alive=false; S.fleets=S.fleets.filter(f=>f.owner!==e.id); S.empires.forEach(o=>{if(o.rel[e.id])o.rel[e.id].war=false;});
+  if(e.id===0)S.over={win:false,how:'eliminated'}; else ev(`The ${e.name} has been wiped from the galaxy.`,3,0,e.color); }
+function colonize(f,p,kind){
+  const idx=f.ships.findIndex(s=>s.d.kind===kind); if(idx<0)return false;
+  f.ships.splice(idx,1); S.fleets=S.fleets.filter(x=>x.ships.length);
+  const e=E(f.owner); p.owner=e.id; p.outpost=kind==='outpost'; p.pop=p.outpost?0:1; p.f=0;p.w=0;p.s=0; p.queue=[];p.prog=0;p.def=0;
+  if(!p.outpost)fixJobs(e,p);
+  if(ST(p.star).vela&&!p.outpost&&p.name==='Vela Prime'){ p.buildings.push('arch'); const alts=[]; FIELDS.forEach(fl=>fl.tiers.forEach((tr,ti)=>{if(ti<=Math.min(4,e.b.lvl[fl.id]))tr.forEach(t=>{if(!e.techs.includes(t.id))alts.push(t.id);});}));
+    shuffle(alts).slice(0,3).forEach(id=>grantTech(e,id,true)); if(e.id===0)ev('Vela Prime colonized. The Precursor Archive yields three lost technologies.',3,0,'#e7b25a'); else ev(`The ${e.name} has claimed Vela Prime and its archive.`,3,0,e.color); }
+  else if(e.id===0)ev(`${p.outpost?'Outpost':'Colony'} founded at ${p.name}.`,2,0,'#6fd18d');
+  return true;
+}
+function colonizable(e,p,kind){ if(p.owner!=null)return false; if(kind==='colony'&&maxPop(e,p)<=0)return false; return !hostileArmedAt(e.id,p.star); }
+
+/* ===== the Hollow ===== */
+function hollowPhase(){
+  const t=S.turn;
+  if(t===70){ const r=ST(S.rift); r.hidden=false; ev('A wound has opened in space: the Hollow Rift. Raiders from beyond will strike the strongest empire. Only a Dimensional Gate can take a fleet through.',3,-9,'#b06cff'); }
+  if(t>=72&&(t-72)%10===0){
+    const tgt=S.empires.filter(e=>e.alive).sort((a,b)=>popOf(b)-popOf(a))[0]; const cs=cols(tgt).filter(p=>!p.outpost); if(!cs.length)return;
+    const p=pick(cs), s=ST(p.star), n=1+Math.floor((t-72)/18), lv=(t-72)/10;
+    const ships=[...Array(n)].map(()=>mon('Hollow Reaver',Math.round(50+lv*14),Math.min(10,3+Math.floor(lv/2)),4+Math.floor(lv/3),1,lv>5?'plasma':'graviton',3));
+    S.fleets.push({id:nid(),owner:-2,star:s.id,x:s.x,y:s.y,dest:null,ships,raid:true});
+    if(tgt.id===0)ev(`The Hollow tear open the sky over ${s.name}!`,3,0,'#b06cff'); else if(me().explored[s.id])ev(`The Hollow strike the ${tgt.name} at ${s.name}.`,2,-9,'#b06cff');
+  }
+}
+function hollowAftermath(){
+  S.fleets.filter(f=>f.raid).forEach(f=>{ S.planets.filter(p=>p.star===f.star&&p.owner!=null&&p.owner>=0).forEach(p=>{
+      const e=E(p.owner); if(!p.outpost){p.pop=Math.max(1,p.pop*.6);fixJobs(e,p);} const bs=p.buildings.filter(b=>b!=='arch'); if(bs.length){const b=pick(bs);p.buildings.splice(p.buildings.indexOf(b),1);}
+      p.def=Math.min(p.def,defMax(p)); if(e.id===0)ev(`The Hollow ravaged ${p.name}: population cut and a building destroyed.`,3,0,'#ef5f5f'); });
+    f.ships=[]; });
+  S.fleets=S.fleets.filter(f=>f.ships.length);
+}
+
+/* ===== AI ===== */
+const anyWar=e=>S.empires.some(o=>o.alive&&o.id!==e.id&&e.rel[o.id].war);
+function capStar(e){const c=P(e.capital);return c&&c.owner===e.id?c.star:(cols(e)[0]?.star??null);}
+function pending(e,kind){ let n=0; S.fleets.forEach(f=>{if(f.owner===e.id)f.ships.forEach(s=>{if(s.d.kind===kind)n++;});}); cols(e).forEach(p=>p.queue.forEach(q=>{if(q.k==='ship'&&q.kind===kind)n++;})); return n; }
+function colonyTargets(e){ const claimed=new Set(S.fleets.filter(f=>f.owner===e.id&&f.target!=null).map(f=>f.target)); const cap=ST(capStar(e)??0);
+  return S.planets.filter(p=>p.owner==null&&maxPop(e,p)>0&&!claimed.has(p.id)&&!ST(p.star).hidden&&inRange(e,ST(p.star))&&!hostileArmedAt(e.id,p.star))
+    .map(p=>({p,sc:maxPop(e,p)*(1+p.min*.15)-Math.hypot(ST(p.star).x-cap.x,ST(p.star).y-cap.y)/45+(p.name==='Vela Prime'?25:0)})).sort((a,b)=>b.sc-a.sc); }
+function outpostTargets(e){ const claimed=new Set(S.fleets.filter(f=>f.owner===e.id&&f.target!=null).map(f=>f.target)); const cap=ST(capStar(e)??0);
+  return S.planets.filter(p=>p.owner==null&&!claimed.has(p.id)&&!ST(p.star).hidden&&inRange(e,ST(p.star))&&!hostileArmedAt(e.id,p.star))
+    .map(p=>({p,sc:(S.planets.some(q=>q.star===p.star&&q.owner===e.id)?0:8)+(PT[p.type].op?4:0)-maxPop(e,p)*.4-Math.hypot(ST(p.star).x-cap.x,ST(p.star).y-cap.y)/80})).sort((a,b)=>b.sc-a.sc); }
+function aiDesign(e){ const caps=cols(e).filter(p=>!p.outpost).map(p=>yieldOf(e,p).ind); const ind=Math.max(10,...caps);
+  const bm=bestBeam(e), mi=bestMissile(e); const w=mi&&WEAPONS[mi].tier>=WEAPONS[bm].tier&&Math.random()<.5?mi:bm;
+  let hull='frigate'; for(const h of HULL_ORDER){ if(!e.b.hulls.has(h))continue; const c=warStats(e,{hull:h,weapon:w,shield:true}).cost; if(c<=ind*9)hull=h; }
+  e.designs=e.designs.filter(d=>d.id!=='ai'); e.designs.unshift({id:'ai',name:HULLS[hull].name,hull,weapon:w,shield:true}); }
+function aiBuild(e,p){
+  if(p.queue.length)return; const war=anyWar(e), c=[];
+  const tot=empTotals(e), ncol=cols(e).filter(x=>!x.outpost).length;
+  if(p.pop>=3||p.capital){ const tg=colonyTargets(e).length, pd=pending(e,'colony'); if(tg>pd&&pd<1+Math.floor(ncol/4))c.push([{k:'ship',kind:'colony'},war?3:7]); }
+  if(pending(e,'outpost')<1&&outpostTargets(e).length&&ncol>=2)c.push([{k:'ship',kind:'outpost'},2]);
+  for(const b of e.b.blds){ if(has(p,b)||!BLD[b])continue; let w={af:6,rf:5,dcm:5,rl:4,sc:4,gc:4,al:4,bio:3,cc:2.5,se:2,pse:2.5,hf:tot.food<tot.need+2?7:.6,starbase:war?3:.5,sf:war?3:.6,mb:war?2.5:.4,ps:war?2:.3,pfs:war?2:.3,bar:war?2:.3,barracks:war?2:.3}[b]||1;
+    if(p.pop<4&&!['hf','af','rl'].includes(b))w*=.3; c.push([{k:'bld',id:b},w]); }
+  for(const j of e.b.proj){ if(j==='tf'&&TF_NEXT[p.type])c.push([{k:'proj',id:'tf'},1.5]); if(j==='gaia'&&(p.type==='Terran'||p.type==='Ocean'))c.push([{k:'proj',id:'gaia'},1.5]); }
+  const mil=S.fleets.filter(f=>f.owner===e.id).reduce((a,f)=>a+strength(f.ships.filter(s=>s.d.kind==='war')),0);
+  const want=10+S.turn*(war?2.2:1.1);
+  if(mil<want&&e.bc>0&&(p.capital||p.pop>=5))c.push([{k:'ship',kind:'war',designId:'ai'},war?9:4]);
+  if(war&&pending(e,'transport')<4&&(p.capital||p.pop>=5))c.push([{k:'ship',kind:'transport'},4]);
+  if(!c.length)return; const it=c[wIdx(c.map(x=>x[1]))][0]; p.queue.push(it);
+}
+function aiFleets(e){
+  const cs=capStar(e); if(cs==null)return;
+  // civilian ships travel alone
+  for(const f of S.fleets.filter(f=>f.owner===e.id&&f.dest==null&&!f.target)){
+    const civ=f.ships.filter(s=>['colony','outpost','scout'].includes(s.d.kind)); if(!civ.length||civ.length===f.ships.length&&new Set(civ.map(s=>s.d.kind)).size===1&&civ.length===1)continue;
+    f.ships=f.ships.filter(s=>!civ.includes(s)); civ.forEach(s=>S.fleets.push({id:nid(),owner:e.id,star:f.star,x:f.x,y:f.y,dest:null,ships:[s]}));
+  }
+  S.fleets=S.fleets.filter(f=>f.ships.length);
+  for(const f of S.fleets.filter(f=>f.owner===e.id&&f.dest==null)){
+    const kinds=new Set(f.ships.map(s=>s.d.kind));
+    if(!armed(f)&&kinds.has('colony')){ const tp=f.target!=null?P(f.target):null;
+      if(tp&&tp.star===f.star&&colonizable(e,tp,'colony')){colonize(f,tp,'colony');f.target=null;continue;}
+      if(tp&&tp.owner!=null)f.target=null;
+      if(f.target==null){ const t=colonyTargets(e)[0]; if(t){ if(f.ships.length>1){const s=f.ships.find(s=>s.d.kind==='colony'); f.ships=f.ships.filter(x=>x!==s); const nf={id:nid(),owner:e.id,star:f.star,x:f.x,y:f.y,dest:null,ships:[s],target:t.p.id}; S.fleets.push(nf); if(t.p.star!==f.star)order(nf,t.p.star);} else {f.target=t.p.id; if(t.p.star!==f.star)order(f,t.p.star);} } }
+      continue; }
+    if(!armed(f)&&kinds.has('outpost')){ const tp=f.target!=null?P(f.target):null;
+      if(tp&&tp.star===f.star&&colonizable(e,tp,'outpost')){colonize(f,tp,'outpost');f.target=null;continue;}
+      if(tp&&tp.owner!=null)f.target=null;
+      if(f.target==null){ const t=outpostTargets(e)[0]; if(t){f.target=t.p.id; if(t.p.star!==f.star)order(f,t.p.star);} } continue; }
+    if(!armed(f)&&kinds.has('scout')&&!kinds.has('transport')){ const opts=S.stars.filter(s=>!s.hidden&&!e.explored[s.id]&&inRange(e,s)); if(opts.length){const t=opts.sort((a,b)=>Math.hypot(a.x-f.x,a.y-f.y)-Math.hypot(b.x-f.x,b.y-f.y))[0]; e.explored[t.id]=true; order(f,t.id);} continue; }
+    if(f.mission){ if(f.star===f.mission.star){ const tp=P(f.mission.pid); if(tp.owner!=null&&tp.owner!==e.id&&hostile(e.id,tp.owner)&&tp.def<=0&&!hostileArmedAt(e.id,f.star)&&f.ships.some(s=>s.d.kind==='transport'))invade(f,tp);
+        if(f.mission&&(tp.owner===e.id||!f.ships.some(s=>s.d.kind==='transport')||!hostile(e.id,tp.owner??e.id)))f.mission=null; if(f.mission&&f.missionAge++>4)f.mission=null; } continue; }
+    if(f.hunt){ if(f.star===f.hunt&&!fleetsAt(f.star).some(x=>x.owner===-1))f.hunt=null; else if(f.star===f.hunt)f.hunt=null; continue; }
+    if(f.star!==cs){ order(f,cs); continue; }
+  }
+  // merge idle fleets at capital
+  const idle=S.fleets.filter(f=>f.owner===e.id&&f.star===cs&&f.dest==null&&!f.target&&!f.mission&&f.ships.every(s=>s.d.kind==='war'||s.d.kind==='transport'));
+  if(idle.length>1){ const m=idle[0]; idle.slice(1).forEach(f=>{m.ships.push(...f.ships);f.ships=[];}); S.fleets=S.fleets.filter(f=>f.ships.length); }
+  const main=S.fleets.find(f=>f.owner===e.id&&f.star===cs&&f.dest==null&&!f.mission&&armed(f)); if(!main)return;
+  const pw=strength(main.ships.filter(s=>s.d.kind==='war')); const trs=main.ships.filter(s=>s.d.kind==='transport').length;
+  const enemies=S.empires.filter(o=>o.alive&&o.id!==e.id&&e.rel[o.id].war);
+  if(enemies.length&&trs>=2&&pw>15){
+    const tgts=S.planets.filter(p=>p.owner!=null&&enemies.some(o=>o.id===p.owner)&&inRange(e,ST(p.star))).map(p=>{const s=ST(p.star); const def=planetStrength(p)+fleetsAt(s.id).filter(x=>x.owner===p.owner).reduce((a,x)=>a+strength(x.ships),0); return {p,def,d:Math.hypot(s.x-main.x,s.y-main.y),need:defenders(p)};})
+      .filter(t=>t.def<pw*.7&&t.need<trs*4*e.b.ground*.9).sort((a,b)=>a.d-b.d);
+    if(tgts[0]){ main.mission={pid:tgts[0].p.id,star:tgts[0].p.star}; main.missionAge=0; order(main,tgts[0].p.star); return; }
+  }
+  if(!enemies.length&&Math.random()<.25){ const ms=S.fleets.filter(x=>x.owner===-1&&!x.guard&&inRange(e,ST(x.star))&&strength(x.ships)*1.6<pw).sort((a,b)=>Math.hypot(ST(a.star).x-main.x,ST(a.star).y-main.y)-Math.hypot(ST(b.star).x-main.x,ST(b.star).y-main.y))[0];
+    if(ms){ if(trs){ const t=main.ships.filter(s=>s.d.kind==='transport'); main.ships=main.ships.filter(s=>s.d.kind!=='transport'); S.fleets.push({id:nid(),owner:e.id,star:cs,x:main.x,y:main.y,dest:null,ships:t}); } main.hunt=ms.star; order(main,ms.star); } }
+}
+function power(e){ return S.fleets.filter(f=>f.owner===e.id).reduce((a,f)=>a+strength(f.ships),0)+cols(e).reduce((a,p)=>a+planetStrength(p),0)*.5; }
+function setWar(a,b,on){ S.stat=S.stat||{}; if(on)S.stat.war=(S.stat.war||0)+1; a.rel[b.id].war=on; b.rel[a.id].war=on; a.rel[b.id].warTurn=b.rel[a.id].warTurn=S.turn; if(on){a.rel[b.id].trade=b.rel[a.id].trade=false;a.rel[b.id].pact=b.rel[a.id].pact=false;} }
+function aiDiplomacy(e){
+  for(const o of S.empires){ if(!o.alive||o.id===e.id||!e.met[o.id])continue; const r=e.rel[o.id];
+    let close=1e9; cols(e).forEach(p=>cols(o).forEach(q=>{close=Math.min(close,Math.hypot(ST(p.star).x-ST(q.star).x,ST(p.star).y-ST(q.star).y));}));
+    if(close<220)r.att-=.5; if(r.trade)r.att+=.3; if(r.pact)r.att+=.3; if(r.war)r.att-=.2; r.att+=rnd(-.6,.6)+(RACE[o.race].t.charm?.15:0); r.att=clamp(r.att,-100,100);
+    if(!r.war&&r.att<-30&&Math.random()<.05&&power(e)>.8*power(o)){ setWar(e,o,true); if(o.id===0)ev(`The ${e.name} has declared WAR on you!`,3,0,'#ef5f5f'); else if(me().met[e.id])ev(`The ${e.name} declared war on the ${o.name}.`,2,-9,e.color); }
+    else if(r.war&&S.turn-r.warTurn>12&&(r.att>-25||power(e)<.6*power(o))&&Math.random()<.07){
+      if(o.id===0){ if(!S.offers.some(x=>x.from===e.id))S.offers.push({from:e.id,type:'peace'}); }
+      else if(o.rel[e.id].att>-40||power(o)<power(e)){ setWar(e,o,false); r.att+=10; o.rel[e.id].att+=10; if(me().met[e.id])ev(`The ${e.name} and the ${o.name} signed peace.`,1,-9); } }
+    else if(!r.war&&r.att>20&&!r.trade&&Math.random()<.04){ if(o.id===0){ if(!S.offers.some(x=>x.from===e.id))S.offers.push({from:e.id,type:'trade'}); } else if(o.rel[e.id].att>10){r.trade=o.rel[e.id].trade=true;} }
+  }
+}
+function aiPickTech(e){ const av=availableTechs(e); if(!av.length)return null; const minT=Math.min(...av.map(id=>TECH[id].tier)); const c=av.filter(id=>TECH[id].tier<=minT+ (Math.random()<.3?1:0));
+  const war=anyWar(e); const w=c.map(id=>{const x=TECH[id].e; return (x.bld?2:1)*(war&&(x.weapon||x.armor||x.shield)?2:1)*(x.gate?.3:1);}); return c[wIdx(w)]; }
+function aiTurn(e){ if(!e.alive||e.isPlayer)return; if(!e.researching)e.researching=aiPickTech(e); aiDesign(e); allocateJobs(e,e.focus); cols(e).filter(p=>!p.outpost).forEach(p=>aiBuild(e,p));
+  // spend surplus credits rushing production
+  for(const p of cols(e).filter(p=>!p.outpost&&p.queue.length).sort((a,b)=>b.pop-a.pop)){ if(e.bc<120)break; const c=itemCost(e,p.queue[0]), left=c-p.prog; if(left<=0||p.prog<=0)continue; const cost=Math.ceil(left*(2+2*(1-p.prog/c))); if(e.bc-cost>=60){e.bc-=cost;p.prog=c;} }
+  if(e.bc<-80){ const f=S.fleets.filter(f=>f.owner===e.id&&f.ships.some(s=>s.d.kind==='war')).sort((a,b)=>strength(a.ships)-strength(b.ships))[0]; if(f){const i=f.ships.findIndex(s=>s.d.kind==='war'); f.ships.splice(i,1); S.fleets=S.fleets.filter(x=>x.ships.length);} }
+  aiFleets(e); aiDiplomacy(e); }
+function aiPost(e){ if(!e.alive||e.isPlayer)return;
+  S.fleets.filter(f=>f.owner===e.id&&f.dest==null).forEach(f=>{ const tp=f.target!=null?P(f.target):null; if(tp&&tp.star===f.star){const k=f.ships.some(s=>s.d.kind==='colony')?'colony':'outpost'; if(colonizable(e,tp,k)){colonize(f,tp,k);f.target=null;}}
+    if(f.mission&&f.star===f.mission.star){ const tp2=P(f.mission.pid); if(tp2.owner!=null&&hostile(e.id,tp2.owner)&&tp2.def<=0&&!hostileArmedAt(e.id,f.star)&&f.ships.some(s=>s.d.kind==='transport')){invade(f,tp2); f.mission=null;} } }); }
+
+/* ===== Concord council ===== */
+function councilCheck(){
+  if(S.turn<S.council.next)return; S.council.next=S.turn+25;
+  const al=S.empires.filter(e=>e.alive); if(al.length<3)return;
+  const c=al.slice().sort((a,b)=>popOf(b)-popOf(a)).slice(0,2);
+  S.vote={c:c.map(x=>x.id)};
+}
+function resolveVote(playerChoice){
+  const v=S.vote; S.vote=null; const al=S.empires.filter(e=>e.alive); const tally={}; v.c.forEach(id=>tally[id]=0); let total=0; const lines=[];
+  al.forEach(e=>{ const n=Math.max(1,popOf(e)); total+=n; let ch;
+    if(e.id===0)ch=playerChoice; else if(v.c.includes(e.id))ch=e.id; else { const [a,b]=v.c; const aa=e.rel[a].att,bb=e.rel[b].att; ch=Math.max(aa,bb)<15?null:(aa>=bb?a:b); }
+    if(ch!=null){tally[ch]+=n;} lines.push(`${e.name}: ${n} vote${n>1?'s':''} → ${ch==null?'abstain':E(ch).name}`); });
+  const winner=v.c.find(id=>tally[id]>=total*2/3);
+  let res; if(winner==null)res='No one reached two-thirds. The Concord adjourns for 25 turns.';
+  else if(winner===0){res='You are elected Sovereign of the galaxy!';S.over={win:true,how:'council'};}
+  else {res=`The ${E(winner).name} is elected Sovereign. Your empire bows to a new ruler.`;S.over={win:false,how:'council',by:winner};}
+  return {lines,tally,total,res};
+}
+
+/* ===== turn ===== */
+function endTurn(){
+  if(S.over||S.vote)return;
+  S.events=[]; S.replays=[];
+  S.empires.forEach(aiTurn);
+  S.empires.forEach(economy);
+  moveFleets();
+  hollowPhase();
+  combats();
+  hollowAftermath();
+  S.empires.forEach(aiPost);
+  S.turn++;
+  updateExplore(); contacts();
+  if(me().alive&&!me().researching&&availableTechs(me()).length)ev('Your scientists await a new research order.',2,0,'#5fd0c9');
+  cols(me()).forEach(p=>{if(!p.outpost&&!p.queue.length)ev(`${p.name} is idle, making trade goods.`,1);});
+  councilCheck();
+  if(!S.over){ const live=S.empires.filter(e=>e.alive&&!e.isPlayer); if(!live.length)S.over={win:true,how:'conquest'}; }
+  S.log=[...S.events.map(x=>({...x,turn:S.turn})),...S.log].slice(0,120);
+}
+
+/* ================= UI ================= */
+const cv=document.getElementById('map'), ctx=cv.getContext('2d'); let dpr=1,VW=0,VH=0,bgTile=null;
+function resize(){ document.documentElement.style.setProperty('--dockH',document.getElementById('dock').offsetHeight+'px'); const r=cv.parentElement.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); VW=r.width;VH=r.height; cv.width=VW*dpr;cv.height=VH*dpr; draw(); }
+function makeBg(){ const c=document.createElement('canvas'); c.width=c.height=512; const g=c.getContext('2d'); for(let i=0;i<260;i++){g.fillStyle=`rgba(${200+ri(0,55)},${200+ri(0,55)},255,${rnd(.15,.7)})`;const s=Math.random()<.92?1:2;g.fillRect(ri(0,511),ri(0,511),s,s);} bgTile=c; }
+const w2s=(x,y)=>[(x-UI.cam.x)*UI.cam.z+VW/2,(y-UI.cam.y)*UI.cam.z+VH/2];
+const s2w=(x,y)=>[(x-VW/2)/UI.cam.z+UI.cam.x,(y-VH/2)/UI.cam.z+UI.cam.y];
+function draw(){
+  if(!S||!VW)return; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.fillStyle='#060913'; ctx.fillRect(0,0,VW,VH);
+  if(bgTile){ const ox=((-UI.cam.x*.25)%512+512)%512, oy=((-UI.cam.y*.25)%512+512)%512; for(let x=ox-512;x<VW;x+=512)for(let y=oy-512;y<VH;y+=512)ctx.drawImage(bgTile,x,y); }
+  const z=UI.cam.z;
+  S.neb.forEach(n=>{const [x,y]=w2s(n.x,n.y); const g=ctx.createRadialGradient(x,y,0,x,y,n.r*z); g.addColorStop(0,`hsla(${n.h},60%,45%,.13)`); g.addColorStop(1,'hsla(0,0%,0%,0)'); ctx.fillStyle=g; ctx.fillRect(x-n.r*z,y-n.r*z,n.r*2*z,n.r*2*z);});
+  const e=me(), R=rangeOf(e);
+  // fuel range
+  ctx.beginPath(); const seen=new Set(); S.planets.forEach(p=>{ if(p.owner===0&&!seen.has(p.star)){seen.add(p.star);const s=ST(p.star);const [x,y]=w2s(s.x,s.y);ctx.moveTo(x+R*z,y);ctx.arc(x,y,R*z,0,Math.PI*2);} });
+  ctx.fillStyle='rgba(231,178,90,.045)'; ctx.fill();
+  // move paths
+  S.fleets.forEach(f=>{ if(f.dest==null||!visibleToPlayer(f))return; const t=ST(f.dest); const [a,b]=w2s(f.x,f.y),[c,d]=w2s(t.x,t.y); ctx.setLineDash([4,5]); ctx.strokeStyle=ownerCol(f.owner); ctx.globalAlpha=.6; ctx.lineWidth=1.2; ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; });
+  if(UI.moveFid!=null){ const f=S.fleets.find(x=>x.id===UI.moveFid); if(f){const [x,y]=w2s(f.x,f.y);ctx.strokeStyle='rgba(231,178,90,.5)';ctx.beginPath();ctx.arc(x,y,fleetSpeed(f)*z,0,Math.PI*2);ctx.stroke();} }
+  // stars
+  const tnow=performance.now()/1000;
+  for(const s of S.stars){ if(s.hidden)continue; const [x,y]=w2s(s.x,s.y); if(x<-60||y<-60||x>VW+60||y>VH+60)continue;
+    const ex=e.explored[s.id];
+    if(s.rift){ for(let k=0;k<3;k++){ctx.strokeStyle=`rgba(176,108,255,${.5-k*.13})`;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y,(14+k*6)*Math.min(1.4,z),(6+k*3)*Math.min(1.4,z),tnow*.4+k,0,Math.PI*2);ctx.stroke();} ctx.fillStyle='#e8d6ff';ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fill(); }
+    else { const c=SCLASS[s.cls].c, r=(s.vela?7:4.5)*Math.min(1.5,Math.max(.8,z));
+      const g=ctx.createRadialGradient(x,y,0,x,y,r*4); g.addColorStop(0,c); g.addColorStop(.25,c+'88'); g.addColorStop(1,c+'00'); ctx.globalAlpha=ex?1:.55; ctx.fillStyle=g; ctx.beginPath();ctx.arc(x,y,r*4,0,7);ctx.fill(); ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,r*.55,0,7);ctx.fill(); ctx.globalAlpha=1;
+      if(s.vela){ctx.strokeStyle='rgba(231,178,90,.7)';ctx.lineWidth=1;ctx.beginPath();for(let k=0;k<8;k++){const a=k*Math.PI/4;ctx.moveTo(x+Math.cos(a)*13,y+Math.sin(a)*13);ctx.lineTo(x+Math.cos(a)*18,y+Math.sin(a)*18);}ctx.stroke();}
+      // owner arcs
+      const owners=[...new Set(s.planets.map(id=>P(id).owner).filter(o=>o!=null))]; if(ex||owners.includes(0)) owners.forEach((o,k)=>{ ctx.strokeStyle=E(o).color; ctx.lineWidth=2.5; const n=owners.length; ctx.beginPath(); ctx.arc(x,y,r+6,-Math.PI/2+k*2*Math.PI/n+.12,-Math.PI/2+(k+1)*2*Math.PI/n-.12); ctx.stroke(); });
+    }
+    if(UI.sel===s.id){ctx.strokeStyle='#e7b25a';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.beginPath();ctx.arc(x,y,20,0,7);ctx.stroke();ctx.setLineDash([]);}
+    ctx.font=`600 ${z>.7?11:10}px "Chakra Petch", sans-serif`; ctx.textAlign='center'; ctx.fillStyle=ex?(s.rift?'#cba6ff':'#c9d1e6'):'#5d6683'; ctx.fillText(s.name.toUpperCase(),x,y+(s.vela?28:22));
+    if(ex){ const pops=s.planets.map(id=>P(id)); const myPop=pops.filter(p=>p.owner===0&&!p.outpost).reduce((a,p)=>a+Math.floor(p.pop),0); if(myPop){ctx.font='600 10px "JetBrains Mono", monospace';ctx.fillStyle='#e7b25a';ctx.fillText(myPop,x,y+34);} }
+  }
+  // fleets
+  const byStar={}; S.fleets.forEach(f=>{ if(!visibleToPlayer(f))return; if(f.owner===-2&&f.guard&&ST(f.star).hidden)return; if(f.star!=null&&f.dest==null){(byStar[f.star]=byStar[f.star]||[]).push(f);} else drawFleet(f,...w2s(f.x,f.y)); });
+  Object.entries(byStar).forEach(([sid,fs])=>{ const s=ST(+sid); if(s.hidden)return; const [x,y]=w2s(s.x,s.y); const grp={}; fs.forEach(f=>(grp[f.owner]=grp[f.owner]||[]).push(f)); Object.keys(grp).forEach((o,k)=>{ const all=grp[o]; drawFleet({owner:+o,ships:all.flatMap(f=>f.ships),monster:all[0].monster},x+16,y-9-k*13); }); });
+}
+function drawFleet(f,x,y){ const c=ownerCol(f.owner); ctx.save(); ctx.translate(x,y);
+  if(f.monster){ ctx.fillStyle=c; ctx.beginPath(); ctx.moveTo(0,-5);ctx.lineTo(5,0);ctx.lineTo(0,5);ctx.lineTo(-5,0);ctx.closePath();ctx.fill(); }
+  else { ctx.fillStyle=c; ctx.strokeStyle='#060913'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(6,0);ctx.lineTo(-5,-4.5);ctx.lineTo(-2.5,0);ctx.lineTo(-5,4.5);ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  ctx.font='600 9px "JetBrains Mono", monospace'; ctx.fillStyle=c; ctx.textAlign='left'; ctx.fillText(f.ships.length,9,3); ctx.restore(); }
+
+/* pointer handling */
+const ptrs=new Map(); let drag=null, pinch=null, moved=false;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=false;
+  if(ptrs.size===1)drag={x:e.clientX,y:e.clientY,cx:UI.cam.x,cy:UI.cam.y};
+  if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),z:UI.cam.z};drag=null;}});
+cv.addEventListener('pointermove',e=>{ if(!ptrs.has(e.pointerId))return; ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&ptrs.size===2){const [a,b]=[...ptrs.values()];UI.cam.z=clamp(pinch.z*Math.hypot(a.x-b.x,a.y-b.y)/pinch.d,.35,2.6);moved=true;draw();}
+  else if(drag){const dx=e.clientX-drag.x,dy=e.clientY-drag.y; if(Math.abs(dx)+Math.abs(dy)>6)moved=true; if(moved){UI.cam.x=clamp(drag.cx-dx/UI.cam.z,0,S.W);UI.cam.y=clamp(drag.cy-dy/UI.cam.z,0,S.H);draw();}}});
+const up=e=>{ ptrs.delete(e.pointerId); if(ptrs.size<2)pinch=null; if(ptrs.size===0){ if(!moved&&drag)tap(e.clientX,e.clientY); drag=null; } };
+cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',e=>{ptrs.delete(e.pointerId);drag=null;pinch=null;});
+cv.addEventListener('wheel',e=>{e.preventDefault();UI.cam.z=clamp(UI.cam.z*(e.deltaY<0?1.1:.9),.35,2.6);draw();},{passive:false});
+function tap(cx,cy){ const r=cv.getBoundingClientRect(); const x=cx-r.left,y=cy-r.top; let best=null,bd=34;
+  S.stars.forEach(s=>{if(s.hidden)return;const [sx,sy]=w2s(s.x,s.y);const d=Math.hypot(sx-x,sy-y);if(d<bd){bd=d;best=s;}});
+  if(UI.moveFid!=null){ if(best)tryMove(best.id); return; }
+  if(!best){ const tf=S.fleets.find(f=>f.owner===0&&f.dest!=null&&(()=>{const [fx,fy]=w2s(f.x,f.y);return Math.hypot(fx-x,fy-y)<20;})()); if(tf){openFleetInTransit(tf);return;} UI.sel=null; renderStar(); draw(); return; }
+  UI.sel=best.id; UI.split=null; renderStar(); draw(); }
+function tryMove(sid){ const f=S.fleets.find(x=>x.id===UI.moveFid); if(!f){cancelMove();return;} const s=ST(sid);
+  if(!inRange(me(),s)){toast(s.rift?'Only a fleet with a Dimensional Gate can enter the Rift.':`${s.name} is beyond fuel range (${rangeOf(me())} parsecs from your planets).`);return;}
+  if(f.star===sid&&f.dest==null){cancelMove();return;}
+  order(f,sid); toast(`Fleet heading to ${s.name}. ETA ${eta(f,sid)} turn${eta(f,sid)>1?'s':''}.`); UI.moveFid=null; $('#moveBanner').hidden=true; UI.sel=sid; renderStar(); draw(); }
+function cancelMove(){UI.moveFid=null;$('#moveBanner').hidden=true;draw();}
+function startMove(fid){UI.moveFid=fid;$('#moveBanner').hidden=false;$('#moveTxt').textContent='Tap a destination star';$('#starPanel').hidden=true;draw();}
+function openFleetInTransit(f){ UI.sel=null; const p=$('#starPanel'); p.hidden=false; p.innerHTML=`<div class="ph"><h2>Fleet in transit</h2><button class="x" data-act="closeStar">×</button></div>${fleetCard(f,true)}`; }
+
+/* ===== DOM helpers ===== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let toastT=0; function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600);}
+function topbar(){ const e=me(), t=empTotals(e); $('#sd').textContent=(3500+S.turn/10).toFixed(1);
+  const net=t.bc-t.maint; $('#sBC').textContent=`${Math.floor(e.bc)} ${net>=0?'+':''}${fmt(net)}`; $('#sBC').style.color=e.bc<0?'var(--danger)':'var(--bc)';
+  $('#sRP').textContent=t.rp; const fs=t.food-t.need; $('#sFood').textContent=(fs>=0?'+':'')+fmt(fs); $('#sFood').style.color=fs<0?'var(--danger)':'var(--food)'; $('#sPop').textContent=t.pop;
+  $('#rBadge').innerHTML=!e.researching&&availableTechs(e).length?'<span class="badge">!</span>':''; }
+function shipSummary(ships){ const g={}; ships.forEach(s=>{const k=s.d.name;g[k]=(g[k]||0)+1;}); return Object.entries(g).map(([n,c])=>`${c}× ${n}`).join(', '); }
+function planetLine(p,e){ const t=PT[p.type]; const mp=maxPop(e,p);
+  return `${t.op?p.type:SIZES[p.size]+' '+p.type} · ${PT[p.type].op?'':MINERALS[p.min]+' · '}${t.op?'outpost only':'max pop '+mp}`; }
+
+function renderStar(){
+  const panel=$('#starPanel'); if(UI.sel==null){panel.hidden=true;return;} const s=ST(UI.sel), e=me(), ex=e.explored[s.id];
+  let h=`<div class="ph"><h2>${esc(s.name)}</h2><span class="sub">${s.rift?'Dimensional tear':SCLASS[s.cls].n+' star'}${inRange(e,s)?'':' · out of range'}</span><button class="x" data-act="closeStar" aria-label="Close">×</button></div>`;
+  if(s.rift)h+=`<p class="note">The Hollow pour through this wound. Destroy the Citadel guarding it to seal the Rift and win the game. Fleets need the <b>Dimensional Gate</b> (Power, tier 5) to cross.</p>`;
+  if(!ex&&!s.rift)h+=`<p class="note">Unexplored. Send a scout or any ship here, or extend your scanners to chart its planets.</p>`;
+  else if(s.planets.length){ h+=`<div class="lbl">Planets</div>`;
+    s.planets.forEach(id=>{const p=P(id),t=PT[p.type]; const own=p.owner!=null?E(p.owner):null; const sz=t.op?22:10+p.size*3.5;
+      h+=`<div class="prow" ${p.owner===0?`data-act="colony" data-p="${p.id}" style="cursor:pointer"`:''}><div class="pdot" style="background:${t.col};width:${sz}px;height:${sz}px"></div><div style="min-width:0"><div class="nm">${esc(p.name)}${p.capital?' <span class="chip">Capital</span>':''}</div><div class="mt">${planetLine(p,e)}</div></div>
+      <div style="text-align:right;font-size:12px">${own?`<span style="color:${own.color};font-weight:600">${p.outpost?'Outpost':'Pop '+Math.floor(p.pop)}</span><br><span class="mt" style="color:var(--dim)">${own.id===0?'Manage ›':esc(RACE[own.race].name)}</span>`:'<span style="color:var(--dim)">Free</span>'}</div></div>`;});
+  } else if(!s.rift) h+=`<p class="note">No planets. Only empty space and starlight.</p>`;
+  const fs=fleetsAt(s.id).filter(visibleToPlayer); if(fs.length){ h+=`<div class="lbl">Fleets here</div>`; fs.forEach(f=>h+=fleetCard(f)); }
+  const idle=fs.filter(f=>f.owner===0&&f.dest==null); if(idle.length>1)h+=`<button class="btn sm" data-act="merge" data-s="${s.id}">Merge my fleets here</button>`;
+  panel.innerHTML=h; panel.hidden=false;
+}
+function fleetCard(f,transit){
+  const e=me(), mine=f.owner===0; let h=`<div class="frow"><div class="top"><span class="sw" style="background:${ownerCol(f.owner)}"></span><b style="font-size:14px">${f.monster?esc(f.monster):esc(ownerName(f.owner))}</b>${f.dest!=null?`<span class="chip">→ ${esc(ST(f.dest).name)}, ${eta(f,f.dest)} turn${eta(f,f.dest)>1?'s':''}</span>`:''}</div>
+  <div class="note">${esc(shipSummary(f.ships))}${f.owner!==0?` · strength ${Math.round(strength(f.ships))}`:''}</div>`;
+  if(mine){ const st=f.star; h+=`<div class="btns" style="margin-top:8px"><button class="btn sm pri" data-act="move" data-f="${f.id}">Move${f.ships.length>1?' all':''}</button>`;
+    if(f.ships.length>1)h+=`<button class="btn sm" data-act="split" data-f="${f.id}">Split…</button>`;
+    if(f.dest!=null)h+=`<button class="btn sm" data-act="stop" data-f="${f.id}">Halt</button>`;
+    if(st!=null&&f.dest==null){ const sp=ST(st).planets.map(P);
+      if(f.ships.some(s=>s.d.kind==='colony'))sp.filter(p=>colonizable(e,p,'colony')).forEach(p=>h+=`<button class="btn sm" data-act="colonize" data-f="${f.id}" data-p="${p.id}" data-k="colony">Colonize ${esc(p.name)}</button>`);
+      if(f.ships.some(s=>s.d.kind==='outpost'))sp.filter(p=>colonizable(e,p,'outpost')).forEach(p=>h+=`<button class="btn sm" data-act="colonize" data-f="${f.id}" data-p="${p.id}" data-k="outpost">Outpost on ${esc(p.name)}</button>`);
+      if(f.ships.some(s=>s.d.kind==='transport'))sp.filter(p=>p.owner!=null&&p.owner!==0&&hostile(0,p.owner)).forEach(p=>{ const ok=p.def<=0&&!hostileArmedAt(0,st);
+        h+=`<button class="btn sm ${ok?'warn':''}" data-act="invade" data-f="${f.id}" data-p="${p.id}" ${ok?'':'disabled'}>Invade ${esc(p.name)} (${Math.round(defenders(p))} def)</button>`; });
+    }
+    h+=`</div>`;
+    if(UI.split&&UI.split.fid===f.id){ const g={}; f.ships.forEach(s=>{(g[s.d.name]=g[s.d.name]||[]).push(s);});
+      h+=`<div style="margin-top:10px">`+Object.entries(g).map(([n,arr])=>`<div class="jobrow"><div class="who">${esc(n)}<small>${arr.length} in fleet</small></div><div class="step"><button data-act="splitAdj" data-n="${esc(n)}" data-d="-1">−</button><b>${UI.split.c[n]||0}</b><button data-act="splitAdj" data-n="${esc(n)}" data-d="1">+</button></div></div>`).join('')+
+      `<div class="btns" style="margin-top:8px"><button class="btn sm pri" data-act="splitGo">Move selected</button><button class="btn sm" data-act="splitStay">Form new fleet here</button></div></div>`; }
+    // ship detail
+    const ws=f.ships.filter(s=>s.d.kind==='war'); if(ws.length){ const d=ws[0].d; h+=`<div class="note" style="margin-top:6px;font-size:12px">Hull ${ws.reduce((a,s)=>a+Math.round(s.hp),0)}/${ws.reduce((a,s)=>a+s.d.hp,0)} · strength ${Math.round(strength(f.ships))}</div>`; }
+  } else if(f.monster) h+=`<div class="note warnTxt" style="margin-top:4px;font-size:12px">Guards this system. No one can settle here until it is destroyed.</div>`;
+  return h+`</div>`;
+}
+
+/* ===== sheets ===== */
+function openSheet(title,html,key){ $('#shT').textContent=title; $('#shB').innerHTML=html; $('#sheet').hidden=false; UI.sheet=key; }
+function closeSheet(){ $('#sheet').hidden=true; UI.sheet=null; UI.colony=null; setTab('galaxy'); }
+function setTab(t){ UI.tab=t; document.querySelectorAll('#dock button').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); }
+function refreshSheet(){ if(UI.sheet==='colony')renderColony(UI.colony); else if(UI.sheet==='colonies')renderColonies(); else if(UI.sheet==='research')renderResearch(); else if(UI.sheet==='fleets')renderFleets(); else if(UI.sheet==='races')renderRaces(); else if(UI.sheet==='design')renderDesigner(); }
+
+function renderColony(pid){
+  UI.colony=pid; const p=P(pid), e=me(); if(p.owner!==0){closeSheet();return;}
+  const y=yieldOf(e,p), mp=maxPop(e,p), t=PT[p.type];
+  let h=`<div class="card"><div class="kv"><span>${SIZES[p.size]} ${p.type} · ${MINERALS[p.min]} minerals</span><span>${esc(ST(p.star).name)}</span></div>`;
+  if(p.outpost){ h+=`<p class="note">An outpost. It extends your fuel range and claims the planet but holds no colonists.</p></div>`; openSheet(p.name,h,'colony'); return; }
+  const g=growthOf(e,p);
+  h+=`<div class="kv"><span>Population</span><span class="num">${fmt(p.pop)} / ${mp}${g>0?` <span style="color:var(--food)">+${g.toFixed(2)}/turn</span>`:''}</span></div><div class="bar"><i style="width:${p.pop/mp*100}%"></i></div>
+   <div class="kv" style="margin-top:6px"><span>Defense</span><span class="num">${Math.round(p.def)}/${defMax(p)} · shield ${pShield(p)} · marines ${Math.round(defenders(p))}</span></div>${p.blk?'<div class="note warnTxt">Enemy ships in orbit. Defenses cannot repair.</div>':''}</div>`;
+  const jr=(k,ic,col,name,per,sub)=>`<div class="jobrow"><div class="ic" style="color:${col}">${ic}</div><div class="who">${name}<small>${sub}</small></div><div class="step"><button data-act="job" data-p="${pid}" data-k="${k}" data-d="-1" aria-label="fewer">−</button><b>${p[k]}</b><button data-act="job" data-p="${pid}" data-k="${k}" data-d="1" aria-label="more">+</button></div></div>`;
+  h+=`<div class="lbl">Workforce</div><div class="card" style="padding:4px 12px">`+
+    jr('f','F','var(--food)','Farmers',y.fpf,y.fpf>0?`${y.fpf} food each`:'cannot farm this world')+
+    jr('w','W','var(--ind)','Workers',y.ipw,`${y.ipw} production each`)+
+    jr('s','S','var(--sci)','Scientists',y.sps,`${y.sps} research each`)+`</div>`;
+  h+=`<div class="out"><div><b style="color:var(--food)">${fmt(y.food-y.need)}</b><span>Food net</span></div><div><b style="color:var(--ind)">${y.ind}</b><span>Prod</span></div><div><b style="color:var(--sci)">${y.rp}</b><span>Research</span></div><div><b style="color:var(--bc)">${fmt(y.bc)}</b><span>Credits</span></div></div>`;
+  // queue
+  h+=`<div class="lbl">Production</div><div class="card">`;
+  if(p.queue.length){ const it=p.queue[0], c=itemCost(e,it), left=Math.max(0,c-p.prog), turns=y.ind>0?Math.ceil(left/y.ind):'∞';
+    const buyC=Math.ceil(left*(2+2*(1-p.prog/c)));
+    h+=`<div class="kv"><span style="color:var(--ink);font-weight:600">${esc(itemName(e,it))}</span><span class="num">${Math.floor(p.prog)}/${c} · ${turns} turn${turns===1?'':'s'}</span></div><div class="bar"><i style="width:${Math.min(100,p.prog/c*100)}%;background:var(--ind)"></i></div>
+     <div class="btns" style="margin-top:8px"><button class="btn sm" data-act="buy" data-p="${pid}" ${e.bc>=buyC&&left>0?'':'disabled'}>Buy for ${buyC} credits</button><button class="btn sm" data-act="qrm" data-p="${pid}" data-i="0">Remove</button></div>`;
+    if(p.queue.length>1)h+=`<div style="margin-top:8px">`+p.queue.slice(1).map((q,i)=>`<div class="qitem"><span class="num" style="color:var(--dim)">${i+2}.</span>${esc(itemName(e,q))}<button class="x" data-act="qrm" data-p="${pid}" data-i="${i+1}">×</button></div>`).join('')+`</div>`;
+  } else h+=`<p class="note" style="margin:0">Nothing queued. Production becomes trade goods at half value (+${fmt(y.ind*.5)} credits).</p>`;
+  h+=`</div>`;
+  if(p.queue.length<6){ h+=`<div class="lbl">Add to queue</div>`;
+    const bl=[...e.b.blds].filter(b=>BLD[b]&&!has(p,b)&&!p.queue.some(q=>q.k==='bld'&&q.id===b));
+    bl.forEach(b=>h+=`<button class="opt" data-act="qadd" data-p="${pid}" data-k="bld" data-id="${b}"><div class="t"><b>${BLD[b].name}</b><small>${BLD[b].d}${BLD[b].m?` Upkeep ${BLD[b].m}/turn.`:''}</small></div><div class="c">${BLD[b].cost}</div></button>`);
+    if(e.b.proj.has('tf')&&TF_NEXT[p.type])h+=`<button class="opt" data-act="qadd" data-p="${pid}" data-k="proj" data-id="tf"><div class="t"><b>Terraform</b><small>${p.type} → ${TF_NEXT[p.type]}</small></div><div class="c">${PROJ.tf.cost}</div></button>`;
+    if(e.b.proj.has('gaia')&&(p.type==='Terran'||p.type==='Ocean'))h+=`<button class="opt" data-act="qadd" data-p="${pid}" data-k="proj" data-id="gaia"><div class="t"><b>Gaia Transformation</b><small>${p.type} → Gaia (3 food per farmer)</small></div><div class="c">${PROJ.gaia.cost}</div></button>`;
+    e.designs.forEach(d=>{const st=warStats(e,d); h+=`<button class="opt" data-act="qadd" data-p="${pid}" data-k="ship" data-kind="war" data-id="${d.id}"><div class="t"><b>${esc(d.name)}</b><small>${HULLS[d.hull].name} · ${st.count}× ${WEAPONS[d.weapon].name} · hull ${st.hp}${st.shield?` · shield ${st.shield}`:''}</small></div><div class="c">${st.cost}</div></button>`;});
+    ['colony','outpost','transport','scout'].forEach(k=>{const st=SPECIAL[k](e); h+=`<button class="opt" data-act="qadd" data-p="${pid}" data-k="ship" data-kind="${k}"><div class="t"><b>${st.name}</b><small>${SPECIAL_DESC[k]}</small></div><div class="c">${st.cost}</div></button>`;});
+  }
+  if(p.buildings.length)h+=`<div class="lbl">Buildings</div><div class="note">${p.buildings.map(b=>BLD[b].name).join(' · ')}</div>`;
+  openSheet(p.name,h,'colony');
+}
+function renderColonies(){
+  const e=me(), t=empTotals(e); let h=`<div class="card"><div class="kv"><span>Food</span><span class="num">${fmt(t.food)} grown / ${t.need} eaten</span></div><div class="kv"><span>Credits</span><span class="num">+${fmt(t.bc)} income − ${fmt(t.maint)} upkeep</span></div><div class="kv"><span>Fuel range</span><span class="num">${rangeOf(e)} parsecs</span></div>
+   <div class="btns" style="margin-top:8px"><button class="btn sm" data-act="balance" data-r=".15">Balance: industry</button><button class="btn sm" data-act="balance" data-r=".35">Balanced</button><button class="btn sm" data-act="balance" data-r=".6">Balance: science</button></div>
+   <p class="note" style="margin:6px 0 0;font-size:12px">Balancing feeds your empire first, then splits the rest of every colony between workers and scientists.</p></div>`;
+  cols(e).sort((a,b)=>(b.capital-a.capital)||(b.pop-a.pop)).forEach(p=>{ const y=p.outpost?null:yieldOf(e,p);
+    h+=`<button class="opt" data-act="colony" data-p="${p.id}"><div class="pdot" style="background:${PT[p.type].col};width:20px;height:20px"></div><div class="t"><b>${esc(p.name)}${p.capital?' ★':''}</b><small>${p.outpost?'Outpost · '+p.type:`Pop ${Math.floor(p.pop)}/${maxPop(e,p)} · F${p.f} W${p.w} S${p.s} · ${p.queue[0]?esc(itemName(e,p.queue[0])):'<span style="color:var(--danger)">idle</span>'}`}</small></div>${y?`<div class="c" style="text-align:right"><span style="color:var(--ind)">${y.ind}</span> · <span style="color:var(--sci)">${y.rp}</span></div>`:''}</button>`; });
+  openSheet('Planets',h,'colonies');
+}
+function renderResearch(){
+  const e=me(); let h='';
+  if(e.researching){ const c=techCost(e,e.researching); const rp=empTotals(e).rp; h+=`<div class="card"><div class="kv"><span>Researching</span><span class="num">${Math.floor(e.rp)}/${c} RP · ${rp>0?Math.ceil(Math.max(0,c-e.rp)/rp):'∞'} turns</span></div><div style="font-family:var(--f-disp);font-size:18px;font-weight:600;margin:2px 0 6px">${TECH[e.researching].name}</div><div class="bar"><i style="width:${Math.min(100,e.rp/c*100)}%;background:var(--sci)"></i></div></div>`; }
+  else h+=`<div class="card"><b style="color:var(--sci)">Choose a research project.</b><p class="note" style="margin:4px 0 0">Each tier offers a choice. Picking one closes off the other for good, unless you find it in the Precursor Archive on Vela Prime.</p></div>`;
+  FIELDS.forEach(f=>{ const l=e.b.lvl[f.id]; h+=`<div class="card"><div class="fieldhead"><span class="sw" style="background:${f.col}"></span><b>${f.name}</b><div class="pips">${f.tiers.map((_,i)=>`<i style="${i<l?`background:${f.col}`:''}"></i>`).join('')}</div></div>`;
+    if(l>=f.tiers.length)h+=`<p class="note" style="margin:0">Field mastered.</p>`;
+    else{ h+=`<div class="tier">`+f.tiers[l].map(t=>`<button class="opt ${e.researching===t.id?'on':''}" data-act="research" data-id="${t.id}" ${e.techs.includes(t.id)?'disabled':''}><div class="t"><b>${t.name}</b><small>${t.d}</small></div><div class="c" style="color:var(--sci)">${techCost(e,t.id)} RP</div></button>`).join('')+`</div>`; }
+    const done=f.tiers.flat().filter(t=>e.techs.includes(t.id)); if(done.length)h+=`<div class="note" style="margin-top:8px;font-size:12px">Known: ${done.map(t=>t.name).join(', ')}</div>`;
+    h+=`</div>`; });
+  openSheet('Research',h,'research');
+}
+function renderFleets(){
+  const e=me(); const fs=S.fleets.filter(f=>f.owner===0);
+  let h=`<div class="btns" style="margin-bottom:12px"><button class="btn pri" data-act="designer">Ship designs</button></div>`;
+  if(!fs.length)h+=`<p class="note">No fleets. Queue ships at a planet.</p>`;
+  fs.forEach(f=>{ h+=`<button class="opt" data-act="gofleet" data-f="${f.id}"><div class="t"><b>${f.star!=null&&f.dest==null?'At '+esc(ST(f.star).name):'In transit'}${f.dest!=null?' → '+esc(ST(f.dest).name)+` (${eta(f,f.dest)})`:''}</b><small>${esc(shipSummary(f.ships))}</small></div><div class="c">${Math.round(strength(f.ships))}</div></button>`; });
+  openSheet('Fleets',h,'fleets');
+}
+function renderDesigner(){
+  const e=me(); UI.dsg=UI.dsg||{hull:'destroyer',weapon:bestBeam(e),shield:true};
+  if(!e.b.hulls.has(UI.dsg.hull))UI.dsg.hull='frigate'; if(!e.b.weapons.has(UI.dsg.weapon))UI.dsg.weapon='laser';
+  const d=UI.dsg, st=warStats(e,{...d,name:'x'});
+  let h=`<div class="lbl" style="margin-top:0">Hull</div><div class="seg" style="flex-wrap:wrap">${HULL_ORDER.filter(x=>e.b.hulls.has(x)).map(x=>`<button class="${d.hull===x?'on':''}" data-act="dsg" data-k="hull" data-v="${x}">${HULLS[x].name}</button>`).join('')}</div>
+   <div class="lbl">Weapon</div>${[...e.b.weapons].map(w=>{const W=WEAPONS[w];return `<button class="opt ${d.weapon===w?'on':''}" data-act="dsg" data-k="weapon" data-v="${w}"><div class="t"><b>${W.name}</b><small>${W.min===W.max?W.min:W.min+'–'+W.max} damage${W.missile?' · fires first 3 rounds only, +'+W.acc+' accuracy':''}</small></div></button>`;}).join('')}
+   <div class="lbl">Shields</div><div class="seg"><button class="${d.shield?'on':''}" data-act="dsg" data-k="shield" data-v="1">Fit shields (class ${e.b.shield})</button><button class="${!d.shield?'on':''}" data-act="dsg" data-k="shield" data-v="0">More guns</button></div>
+   <div class="card" style="margin-top:12px"><div class="kv"><span>Weapons</span><span class="num">${st.count}× ${WEAPONS[st.weapon].name}</span></div><div class="kv"><span>Structure</span><span class="num">${st.hp}</span></div><div class="kv"><span>Shield</span><span class="num">${st.shield}</span></div><div class="kv"><span>Accuracy / evasion</span><span class="num">${st.acc} / ${st.eva}</span></div><div class="kv"><span>Cost</span><span class="num" style="color:var(--ind)">${st.cost}</span></div>
+   <p class="note" style="font-size:12px;margin:6px 0 0">Armor, shields and computers always use your best technology when a ship is built.</p></div>
+   <button class="btn pri" style="width:100%" data-act="dsgSave">Save as new design</button>
+   <div class="lbl">Your designs</div>${e.designs.map(x=>{const s=warStats(e,x);return `<div class="opt"><div class="t"><b>${esc(x.name)}</b><small>${HULLS[x.hull].name} · ${s.count}× ${WEAPONS[x.weapon].name} · hull ${s.hp}</small></div>${e.designs.length>1?`<button class="btn sm" data-act="dsgDel" data-id="${x.id}">Retire</button>`:''}</div>`;}).join('')}`;
+  openSheet('Ship designs',h,'design');
+}
+function renderRaces(){
+  const e=me(); let h='';
+  const others=S.empires.filter(o=>o.id!==0);
+  if(!others.some(o=>e.met[o.id]))h+=`<p class="note">You have not met another empire yet. Explore to make contact.</p>`;
+  others.forEach(o=>{ if(!e.met[o.id]){ h+=`<div class="card" style="opacity:.6"><b>Unknown empire</b></div>`; return; }
+    const r=o.rel[0], st=!o.alive?'Destroyed':r.war?'At war':'At peace';
+    h+=`<div class="card"><div class="fieldhead"><span class="sw" style="background:${o.color}"></span><b>${esc(o.name)}</b><span class="chip" style="margin-left:auto;${r.war?'color:var(--danger)':''}">${st}</span></div>
+     <p class="note" style="margin:0 0 8px">${RACE[o.race].blurb}</p>
+     <div class="kv"><span>Mood toward you</span><span class="num">${r.att>30?'Warm':r.att>5?'Cordial':r.att>-15?'Wary':r.att>-40?'Hostile':'Furious'} (${Math.round(r.att)})</span></div>
+     <div class="kv"><span>Population · planets</span><span class="num">${popOf(o)} · ${cols(o).length}</span></div><div class="kv"><span>Military estimate</span><span class="num">${Math.round(power(o))} vs your ${Math.round(power(e))}</span></div>
+     <div class="kv"><span>Treaties</span><span>${[r.trade&&'Trade',r.pact&&'Research'].filter(Boolean).join(', ')||'None'}</span></div>`;
+    if(o.alive){ h+=`<div class="btns" style="margin-top:8px">`;
+      if(r.war)h+=`<button class="btn sm" data-act="dip" data-o="${o.id}" data-k="peace">Propose peace</button>`;
+      else{ if(!r.trade)h+=`<button class="btn sm" data-act="dip" data-o="${o.id}" data-k="trade">Trade treaty</button>`; if(!r.pact)h+=`<button class="btn sm" data-act="dip" data-o="${o.id}" data-k="pact">Research pact</button>`;
+        h+=`<button class="btn sm" data-act="dip" data-o="${o.id}" data-k="gift" ${e.bc>=50?'':'disabled'}>Gift 50 credits</button><button class="btn sm warn" data-act="dip" data-o="${o.id}" data-k="war">Declare war</button>`; }
+      h+=`</div>`; }
+    h+=`</div>`; });
+  const al=S.empires.filter(x=>x.alive);
+  h+=`<div class="card"><b style="font-family:var(--f-disp);letter-spacing:.06em">THE CONCORD</b><p class="note" style="margin:4px 0 0">The galactic council meets on turn ${S.council.next} (stardate ${(3500+S.council.next/10).toFixed(1)}). The two most populous empires stand. Votes are weighted by population; two-thirds wins the galaxy.</p>
+   <div style="margin-top:8px">${al.slice().sort((a,b)=>popOf(b)-popOf(a)).map(x=>`<div class="kv"><span><span class="sw" style="background:${x.color}"></span> ${esc(e.met[x.id]||x.id===0?x.name:'Unknown')}</span><span class="num">${popOf(x)} votes</span></div>`).join('')}</div></div>`;
+  openSheet('Empires',h,'races');
+}
+function renderMenu(){
+  const h=`<button class="opt" data-act="help"><div class="t"><b>How to play</b><small>Colonies, research, fleets, and the three ways to win.</small></div></button>
+   <button class="opt" data-act="log"><div class="t"><b>Turn reports</b><small>Recent events across your empire.</small></div></button>
+   <button class="opt" data-act="center"><div class="t"><b>Center on capital</b></div></button>
+   <button class="opt" data-act="newgame"><div class="t"><b>New game</b><small>Abandon this galaxy and start over.</small></div></button>
+   <p class="note" style="margin-top:14px">Your game saves on this device after every turn.</p>`;
+  openSheet('Menu',h,'menu');
+}
+const HELP=`<div class="note" style="color:var(--ink);line-height:1.55">
+<p><b style="color:var(--brass)">Goal.</b> Win one of three ways: <b>conquer</b> every rival, be <b>elected Sovereign</b> by the Concord (two-thirds of the votes, weighted by population), or <b>seal the Hollow Rift</b> by destroying its Citadel.</p>
+<p><b style="color:var(--brass)">Colonies.</b> Each colonist is a Farmer, Worker or Scientist. Every colonist eats 1 food. Planet climate sets food per farmer; mineral richness sets production per worker. Your capital adds a bonus to all three. Tap a planet you own to move people and set what it builds.</p>
+<p><b style="color:var(--brass)">Credits.</b> Colonists pay taxes. Buildings and warships cost upkeep. Idle planets make trade goods. You can buy the item a planet is building; it is cheaper once work has started.</p>
+<p><b style="color:var(--brass)">Expansion.</b> Colony ships settle habitable worlds. Outpost ships claim anything, including gas giants and asteroids, and push out your fuel range (the faint gold zone). Fleets cannot fly beyond it.</p>
+<p><b style="color:var(--brass)">Research.</b> Six fields, five tiers each. Every tier is a choice of two; the one you skip is gone. Vela Prime's Precursor Archive grants lost technologies to whoever settles it first, but the Warden guards it.</p>
+<p><b style="color:var(--brass)">War.</b> Enemy fleets and planets at war fight automatically when they meet, and you watch the replay. Planetary defenses repair unless enemy warships sit in orbit. To capture a planet: destroy its defenses, then land Troop Transports with enough marines to beat its defenders.</p>
+<p><b style="color:var(--brass)">Map.</b> Drag to pan, pinch to zoom. Tap a star for its planets and fleets. Choose Move on a fleet, then tap the destination.</p>
+<p><b style="color:var(--brass)">The Hollow.</b> Around stardate 3507 the Rift opens. Raiders strike the most populous empire every 10 turns.</p></div>`;
+
+/* ===== modals ===== */
+function showModal(html){ $('#mB').innerHTML=html; $('#modal').hidden=false; }
+function closeModal(){ $('#modal').hidden=true; if(UI.anim){cancelAnimationFrame(UI.anim);UI.anim=null;} nextModal(); }
+function nextModal(){ const f=UI.mq.shift(); if(f)f(); }
+function queuePostTurn(){
+  S.replays.forEach(r=>UI.mq.push(()=>showBattle(r)));
+  S.offers.forEach(o=>UI.mq.push(()=>showOffer(o))); S.offers=[];
+  if(S.vote)UI.mq.push(showVote);
+  const imp=S.events.filter(x=>x.l>=2); if(imp.length)UI.mq.push(()=>showReport(S.events));
+  if(S.over)UI.mq.push(showOver);
+  if($('#modal').hidden)nextModal();
+}
+function showReport(evs){ showModal(`<h3>Stardate ${(3500+S.turn/10).toFixed(1)}</h3>${evs.slice().sort((a,b)=>b.l-a.l).map(x=>`<div class="ev"><i style="background:${x.c}"></i><span>${esc(x.t)}</span></div>`).join('')}<div class="btns" style="margin-top:12px">${!me().researching&&availableTechs(me()).length?'<button class="btn" data-act="toResearch">Choose research</button>':''}<button class="btn pri" data-act="closeModal">Continue</button></div>`); }
+function showOffer(o){ const e=E(o.from); if(!e.alive)return nextModal();
+  showModal(`<h3 style="color:${e.color}">${esc(e.name)}</h3><p>${o.type==='peace'?'Our envoys propose an end to this war. Will you sign a peace treaty?':'We propose a trade treaty. Our merchants will enrich both peoples.'}</p><div class="btns"><button class="btn pri" data-act="offer" data-o="${o.from}" data-k="${o.type}" data-y="1">Accept</button><button class="btn" data-act="offer" data-o="${o.from}" data-k="${o.type}" data-y="0">Decline</button></div>`); }
+function showVote(){ const v=S.vote; const [a,b]=v.c.map(E); const pc=v.c.includes(0);
+  showModal(`<h3>The Concord convenes</h3><p>Candidates for Sovereign: <b style="color:${a.color}">${esc(a.name)}</b> (${popOf(a)} pop) and <b style="color:${b.color}">${esc(b.name)}</b> (${popOf(b)} pop). A candidate needs two-thirds of all votes.${pc?'':' <span class="warnTxt">If a rival is elected, you lose.</span>'}</p>
+   <div class="btns"><button class="btn ${a.id===0?'pri':''}" data-act="vote" data-v="${a.id}">Vote ${a.id===0?'for yourself':esc(RACE[a.race].name)}</button><button class="btn ${b.id===0?'pri':''}" data-act="vote" data-v="${b.id}">Vote ${b.id===0?'for yourself':esc(RACE[b.race].name)}</button><button class="btn" data-act="vote" data-v="-1">Abstain</button></div>`); }
+function showOver(){ const o=S.over; const msg=o.win?{conquest:'Every rival has fallen. The galaxy answers to you alone.',council:'The Concord has named you Sovereign of the galaxy.',rift:'The Citadel is ash and the Rift collapses behind it. The Hollow will not return.'}[o.how]:{eliminated:'Your last world has fallen. Your empire passes into history.',council:`The Concord crowned the ${o.by!=null?E(o.by).name:'enemy'}. Your empire must kneel.`}[o.how];
+  showModal(`<h3 style="color:${o.win?'var(--brass)':'var(--danger)'}">${o.win?'Victory':'Defeat'}</h3><p>${msg}</p><p class="note">Stardate ${(3500+S.turn/10).toFixed(1)} · turn ${S.turn}</p><div class="btns"><button class="btn pri" data-act="newgame">New game</button><button class="btn" data-act="closeModal">View galaxy</button></div>`); }
+function showBattle(r){
+  showModal(`<h3>Battle at ${esc(r.star)}</h3><div class="note"><span style="color:${r.cols[0]}">${esc(r.names[0])}</span> vs <span style="color:${r.cols[1]}">${esc(r.names[1])}</span></div><canvas id="bcv"></canvas><div id="bres" class="note">Round 1</div><div class="btns" style="margin-top:10px"><button class="btn" data-act="bskip">Skip</button><button class="btn pri" data-act="closeModal">Continue</button></div>`);
+  const c=$('#bcv'), W=c.clientWidth, H=260, d=Math.min(2,devicePixelRatio||1); c.width=W*d;c.height=H*d; const g=c.getContext('2d'); g.setTransform(d,0,0,d,0,0);
+  const sides=[[],[]]; r.units.forEach((u,i)=>sides[u.s].push(i)); const pos=[];
+  sides.forEach((list,s)=>{ const n=list.length, colsN=Math.ceil(n/8); list.forEach((ix,k)=>{ const col=Math.floor(k/8), row=k%8, rows=Math.min(8,n-col*8); pos[ix]={x:s===0?40+col*34:W-40-col*34,y:H/2+(row-(rows-1)/2)*28}; }); });
+  let hp=r.start.slice(), round=0, t0=performance.now(), done=false;
+  const sizeOf=u=>u.k==='planet'?14:({frigate:6,destroyer:8,cruiser:10,battleship:12,titan:14,doom:16,monster:15}[u.h]||8);
+  const frame=now=>{ const el=(now-t0)/900; if(el>=1&&!done){ if(round<r.rounds.length){hp=r.rounds[round].hp;round++;t0=now;} if(round>=r.rounds.length)done=true; }
+    g.fillStyle='#04060d';g.fillRect(0,0,W,H);
+    const rd=r.rounds[round]; if(rd&&!done){ const p=Math.min(1,(now-t0)/600); rd.shots.forEach(s=>{const a=pos[s.a],b=pos[s.t]; if(!a||!b)return; const col=r.cols[r.units[s.a].s]; g.strokeStyle=col; g.globalAlpha=(1-p)*.8; g.lineWidth=s.h?1.6:.6; g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(a.x+(b.x-a.x)*Math.min(1,p*1.6),a.y+(b.y-a.y)*Math.min(1,p*1.6)); g.stroke(); if(s.h&&p>.55){g.fillStyle='#fff';g.globalAlpha=(1-p)*1.6;g.beginPath();g.arc(b.x,b.y,2+s.d*.15,0,7);g.fill();} }); g.globalAlpha=1; }
+    r.units.forEach((u,i)=>{ const p=pos[i]; const alive=hp[i]>0, col=r.cols[u.s], sz=sizeOf(u); g.globalAlpha=alive?1:.18; g.fillStyle=col;
+      if(u.k==='planet'){g.beginPath();g.arc(p.x,p.y,sz,0,7);g.fill();} else { g.beginPath(); const dir=u.s===0?1:-1; g.moveTo(p.x+sz*dir,p.y); g.lineTo(p.x-sz*.8*dir,p.y-sz*.6); g.lineTo(p.x-sz*.8*dir,p.y+sz*.6); g.closePath(); g.fill(); }
+      if(alive&&u.m>0){ g.fillStyle='rgba(255,255,255,.12)'; g.fillRect(p.x-12,p.y+sz+3,24,3); g.fillStyle=hp[i]/u.m>.5?'#6fd18d':hp[i]/u.m>.25?'#f2d36b':'#ef5f5f'; g.fillRect(p.x-12,p.y+sz+3,24*Math.max(0,hp[i])/u.m,3); } g.globalAlpha=1; });
+    const lbl=$('#bres'); if(lbl)lbl.innerHTML=done?resultText(r):`Round ${Math.min(round+1,r.rounds.length)} of ${r.rounds.length}`;
+    if(!done||now-t0<200)UI.anim=requestAnimationFrame(frame); else UI.anim=null; };
+  UI.bskip=()=>{ hp=r.rounds.length?r.rounds[r.rounds.length-1].hp:hp; round=r.rounds.length; done=true; };
+  UI.anim=requestAnimationFrame(frame);
+}
+function resultText(r){ const fin=r.rounds.length?r.rounds[r.rounds.length-1].hp:r.start; const lost=[0,0],tot=[0,0]; r.units.forEach((u,i)=>{ if(u.k==='planet')return; tot[u.s]++; if(fin[i]<=0)lost[u.s]++; });
+  const yo=r.pl, th=1-r.pl; return `<b style="color:${r.result==='Victory'?'var(--good)':r.result==='Defeat'?'var(--danger)':'var(--bc)'}">${r.result}.</b> You lost ${lost[yo]} of ${tot[yo]} ships; the enemy lost ${lost[th]} of ${tot[th]}.`; }
+
+/* ===== actions ===== */
+const ACT={
+  endTurn(){ if(S.over){showOver();return;} if(S.vote){showVote();return;} endTurn(); save(); topbar(); renderStar(); draw(); refreshSheet(); queuePostTurn(); },
+  tab(d){ const t=d.t; if(t==='galaxy'){ $('#sheet').hidden=true; UI.sheet=null; setTab('galaxy'); return; } setTab(t);
+    ({colonies:renderColonies,research:renderResearch,fleets:renderFleets,races:renderRaces,menu:renderMenu})[t](); },
+  closeSheet, closeModal, closeStar(){UI.sel=null;UI.split=null;renderStar();draw();},
+  colony(d){ setTab('colonies'); renderColony(+d.p); },
+  job(d){ const p=P(+d.p), k=d.k, dl=+d.d; const ks=['f','w','s']; if(dl>0){ const from=ks.filter(x=>x!==k).sort((a,b)=>(a==='w'?-1:0)-(b==='w'?-1:0)).find(x=>p[x]>0); if(!from)return; if(k==='f'&&yieldOf(me(),p).fpf===0){toast('Nothing grows on this world. Build a Hydroponic Farm instead.');return;} p[from]--;p[k]++; }
+    else{ if(p[k]<=0)return; p[k]--; const to=k==='w'?'s':'w'; if(to==='f'&&yieldOf(me(),p).fpf===0)p.w++; else p[to]++; } renderColony(p.id); topbar(); },
+  qadd(d){ const p=P(+d.p); const it=d.k==='bld'?{k:'bld',id:d.id}:d.k==='proj'?{k:'proj',id:d.id}:{k:'ship',kind:d.kind,designId:d.id}; p.queue.push(it); renderColony(p.id); },
+  qrm(d){ const p=P(+d.p); const i=+d.i; p.queue.splice(i,1); if(i===0)p.prog=0; renderColony(p.id); },
+  buy(d){ const p=P(+d.p),e=me(),it=p.queue[0]; if(!it)return; const c=itemCost(e,it), left=c-p.prog, cost=Math.ceil(left*(2+2*(1-p.prog/c))); if(e.bc<cost)return; e.bc-=cost; p.prog=c; toast(`${itemName(e,it)} will be finished next turn.`); renderColony(p.id); topbar(); },
+  balance(d){ allocateJobs(me(),+d.r); me().focus=+d.r; renderColonies(); topbar(); toast('Workforce rebalanced.'); },
+  research(d){ const e=me(); if(e.researching!==d.id){ e.researching=d.id; } renderResearch(); topbar(); },
+  toResearch(){ $('#modal').hidden=true; UI.mq=[]; setTab('research'); renderResearch(); },
+  move(d){ startMove(+d.f); },
+  stop(d){ const f=S.fleets.find(x=>x.id===+d.f); if(f){ f.dest=null; } renderStar(); draw(); },
+  split(d){ UI.split={fid:+d.f,c:{}}; renderStar(); },
+  splitAdj(d){ const f=S.fleets.find(x=>x.id===UI.split.fid); const n=d.n; const have=f.ships.filter(s=>s.d.name===n).length; UI.split.c[n]=clamp((UI.split.c[n]||0)+ +d.d,0,have); renderStar(); },
+  splitGo(){ const nf=doSplit(); if(nf)startMove(nf.id); },
+  splitStay(){ doSplit(); renderStar(); draw(); },
+  merge(d){ const fs=S.fleets.filter(f=>f.owner===0&&f.star===+d.s&&f.dest==null); fs.slice(1).forEach(f=>{fs[0].ships.push(...f.ships);f.ships=[];}); S.fleets=S.fleets.filter(f=>f.ships.length); renderStar(); draw(); },
+  colonize(d){ const f=S.fleets.find(x=>x.id===+d.f), p=P(+d.p); if(f&&colonizable(me(),p,d.k)){ colonize(f,p,d.k); updateExplore(); topbar(); renderStar(); draw(); if(d.k==='colony'){setTab('colonies');renderColony(p.id);} } },
+  invade(d){ const f=S.fleets.find(x=>x.id===+d.f), p=P(+d.p); const ok=invade(f,p); toast(ok?`${p.name} captured!`:`The invasion of ${p.name} failed.`); topbar(); renderStar(); draw(); if(!S.over&&!S.empires.some(e=>e.alive&&!e.isPlayer)){S.over={win:true,how:'conquest'};showOver();} save(); },
+  gofleet(d){ const f=S.fleets.find(x=>x.id===+d.f); if(!f)return; closeSheet(); UI.cam.x=f.x;UI.cam.y=f.y; if(f.star!=null&&f.dest==null){UI.sel=f.star;renderStar();} else openFleetInTransit(f); draw(); },
+  designer(){ renderDesigner(); },
+  dsg(d){ UI.dsg[d.k]=d.k==='shield'?d.v==='1':d.v; renderDesigner(); },
+  dsgSave(){ const e=me(); const used=new Set(e.designs.map(x=>x.name)); const name=SHIP_NAMES.find(n=>!used.has(n))||'Design '+(e.designs.length+1);
+    e.designs.push({id:'d'+nid(),name,hull:UI.dsg.hull,weapon:UI.dsg.weapon,shield:UI.dsg.shield}); toast(`Design “${name}” saved.`); renderDesigner(); },
+  dsgDel(d){ const e=me(); e.designs=e.designs.filter(x=>x.id!==d.id); renderDesigner(); },
+  dip(d){ const e=me(),o=E(+d.o),r=o.rel[0],k=d.k; let msg='';
+    if(k==='war'){ setWar(e,o,true); r.att-=40; S.empires.forEach(x=>{if(x.id!==0&&x.id!==o.id&&x.rel[0])x.rel[0].att-=5;}); msg=`You declared war on the ${o.name}.`; }
+    else if(k==='peace'){ if(r.att>-30||power(o)<power(e)*.8){setWar(e,o,false);r.att+=10;msg=`The ${o.name} accepts peace.`;} else {r.att-=2;msg=`The ${o.name} refuses. They smell weakness.`;} }
+    else if(k==='trade'){ if(r.att>0){r.trade=e.rel[o.id].trade=true;r.att+=5;msg='Trade treaty signed.';} else {r.att-=1;msg=`The ${o.name} does not trust you enough to trade.`;} }
+    else if(k==='pact'){ if(r.att>10){r.pact=e.rel[o.id].pact=true;r.att+=5;msg='Research pact signed.';} else {r.att-=1;msg=`The ${o.name} declines to share its science.`;} }
+    else if(k==='gift'){ if(e.bc>=50){e.bc-=50;r.att+=12;msg=`The ${o.name} accepts your gift warmly.`;} }
+    toast(msg); renderRaces(); topbar(); },
+  offer(d){ const o=E(+d.o), e=me(); if(d.y==='1'){ if(d.k==='peace'){setWar(e,o,false);o.rel[0].att+=10;} else {o.rel[0].trade=e.rel[o.id].trade=true;} toast('Treaty signed.'); } else o.rel[0].att-=5; closeModal(); },
+  vote(d){ const v=+d.v; const res=resolveVote(v<0?null:v); topbar();
+    showModal(`<h3>Concord result</h3>${res.lines.map(l=>`<div class="ev"><span>${esc(l)}</span></div>`).join('')}<p><b>${esc(res.res)}</b></p><div class="btns"><button class="btn pri" data-act="closeModal">Continue</button></div>`);
+    if(S.over)UI.mq.unshift(showOver); save(); },
+  bskip(){ UI.bskip&&UI.bskip(); },
+  help(){ openSheet('How to play',HELP,'help'); },
+  log(){ openSheet('Turn reports',S.log.length?S.log.map(x=>`<div class="ev"><i style="background:${x.c}"></i><span><span class="num" style="color:var(--dim)">${(3500+x.turn/10).toFixed(1)}</span> ${esc(x.t)}</span></div>`).join(''):'<p class="note">Nothing yet.</p>','log'); },
+  center(){ const c=P(me().capital); if(c){const s=ST(c.star);UI.cam.x=s.x;UI.cam.y=s.y;} closeSheet(); draw(); },
+  newgame(){ $('#modal').hidden=true; UI.mq=[]; $('#sheet').hidden=true; showStart(true); },
+  cancelMove,
+  pickRace(d){ startOpts.race=d.r; renderStart(); }, pickOpt(d){ startOpts[d.k]=d.v; renderStart(); },
+  begin(){ newGame({...startOpts}); $('#start').hidden=true; UI.sel=null; UI.mq=[]; setTab('galaxy'); save(); topbar(); renderStar(); resize();
+    UI.mq.push(()=>showModal(`<h3>Stardate 3500.0</h3><p>The ${esc(me().name)} takes its first steps into the stars. Your capital, ${esc(P(me().capital).name)}, has a colony ship, a frigate and two scouts in orbit.</p><p class="note">Send the scouts to nearby stars, and the colony ship to the best world you find. Queue production on your capital, then pick your first research.</p><div class="btns"><button class="btn" data-act="help">How to play</button><button class="btn pri" data-act="closeModal">Begin</button></div>`)); nextModal(); },
+  resume(){ $('#start').hidden=true; topbar(); renderStar(); resize(); }
+};
+function doSplit(){ const f=S.fleets.find(x=>x.id===UI.split.fid); const take=[]; Object.entries(UI.split.c).forEach(([n,c])=>{ for(let i=0;i<c;i++){const s=f.ships.find(s=>s.d.name===n&&!take.includes(s)); if(s)take.push(s);} });
+  if(!take.length||take.length===f.ships.length){UI.split=null; return f;} f.ships=f.ships.filter(s=>!take.includes(s)); const nf={id:nid(),owner:0,star:f.star,x:f.x,y:f.y,dest:null,ships:take}; S.fleets.push(nf); UI.split=null; return nf; }
+document.addEventListener('click',ev=>{ const b=ev.target.closest('[data-act]'); if(!b||b.disabled)return; const fn=ACT[b.dataset.act]; if(fn){ev.preventDefault();fn(b.dataset,b);} });
+
+/* ===== start / save ===== */
+const KEY='vela-sovereign-save-v1'; const startOpts={race:'varnai',size:'medium',diff:'normal'};
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S,(k,v)=>k==='b'?undefined:v)); }catch(e){} }
+function load(raw){ S=raw; S.empires.forEach(recompute); S.replays=S.replays||[]; S.offers=S.offers||[]; }
+function renderStart(){ let has=false; try{has=!!localStorage.getItem(KEY);}catch(e){}
+  const o=startOpts; $('#start').innerHTML=`<div class="wrap"><div style="font-family:var(--f-disp);letter-spacing:.3em;font-size:11px;color:var(--dim)">A GALACTIC STRATEGY GAME</div><h1>VELA SOVEREIGN</h1>
+  <p class="lead">Four peoples wake to the stars. At the galaxy's heart lies Vela Prime and the Precursor Archive, guarded by the Warden. Beyond the edge, the Hollow are waiting. Explore, expand, exploit and exterminate.</p>
+  ${UI.canResume?`<button class="btn pri" style="width:100%;margin:8px 0" data-act="resume">Return to your game</button>`:''}
+  <div class="lbl">Choose your people</div><div class="races">${RACES.map(r=>`<button class="race ${o.race===r.id?'on':''}" data-act="pickRace" data-r="${r.id}"><b>${r.name}</b><small>${r.blurb}</small></button>`).join('')}</div>
+  <div class="lbl">Galaxy</div><div class="seg">${['small','medium','large'].map(s=>`<button class="${o.size===s?'on':''}" data-act="pickOpt" data-k="size" data-v="${s}">${s[0].toUpperCase()+s.slice(1)}</button>`).join('')}</div>
+  <div class="lbl">Rivals</div><div class="seg">${['easy','normal','hard'].map(s=>`<button class="${o.diff===s?'on':''}" data-act="pickOpt" data-k="diff" data-v="${s}">${s[0].toUpperCase()+s.slice(1)}</button>`).join('')}</div>
+  <button class="btn pri" style="width:100%;margin-top:18px;padding:14px;font-family:var(--f-disp);letter-spacing:.12em" data-act="begin">${UI.canResume||has?'START NEW GAME':'BEGIN'}</button></div>`; }
+function showStart(canResume){ UI.canResume=!!canResume&&S&&!S.over; renderStart(); $('#start').hidden=false; }
+
+function start(data){
+  makeBg(); new ResizeObserver(resize).observe($('#mapwrap'));
+  let raw=data&&data.S; if(!raw){ try{const s=localStorage.getItem(KEY); if(s)raw=JSON.parse(s);}catch(e){} }
+  if(raw){ load(raw); if(data&&data.UI){Object.assign(UI.cam,data.UI.cam||{});} else { const c=P(me().capital); const s=c?ST(c.star):S.stars[0]; UI.cam={x:s.x,y:s.y,z:.8}; } topbar(); resize(); }
+  else showStart(false);
+  setInterval(()=>{ if(S&&S.stars[S.rift]&&!S.stars[S.rift].hidden&&$('#modal').hidden)draw(); },120);
+}
+window.claude?.hot?.snapshot?.(()=>({S:S?JSON.parse(JSON.stringify(S,(k,v)=>k==='b'?undefined:v)):null,UI:{cam:UI.cam}}));
+if(typeof window!=='undefined'&&!window.__HEADLESS){ window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {}); }
+</script>
+
+</body>
+</html>
